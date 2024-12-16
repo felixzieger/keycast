@@ -1,0 +1,68 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+:root {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: theme("colors.gray.900");
+    color: theme("colors.gray.100");
+    padding: 1rem;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.page-header {
+    @apply text-2xl font-bold mb-4;
+}
+
+.page-subheader {
+    @apply text-lg font-semibold mb-4 border-b border-gray-700;
+}
+
+.button {
+    @apply whitespace-nowrap shrink rounded-md px-2 py-1 text-sm font-medium text-white/90 hover:text-white ring-1 ring-offset-2 ring-offset-gray-900;
+}
+
+.button-primary {
+    @apply bg-indigo-600 hover:bg-indigo-700 ring-indigo-600/50 hover:ring-indigo-500/60;
+}
+
+.button-secondary {
+    @apply bg-gray-600/50 hover:bg-gray-700 ring-gray-700/50 hover:ring-gray-500/60;
+}
+
+.button-danger {
+    @apply bg-red-700 hover:bg-red-800 ring-red-700/50 hover:ring-red-500/60;
+}
+
+.button-icon {
+    @apply flex flex-row items-center gap-2;
+}
+
+.card-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4;
+}
+
+.card {
+    @apply p-4 bg-gray-800 rounded-lg ring-1 ring-gray-700 ring-offset-2 ring-offset-gray-900 flex flex-col gap-4 hover:ring-offset-gray-700 hover:ring-gray-600;
+}
+
+.pill {
+    @apply rounded-full px-2 py-1 text-xs font-light text-white self-start;
+}
+
+.form-group {
+    @apply flex flex-col mb-4;
+}
+
+.form-group label {
+    @apply text-sm mb-1 text-gray-400;
+}
+
+input[type="text"], input[type="password"], select {
+    @apply bg-transparent text-gray-50 rounded-md px-2 py-1 ring-1 ring-gray-500;
+}
+
+.input-error {
+    @apply text-red-500 text-sm;
+}

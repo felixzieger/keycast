@@ -1,0 +1,15 @@
+{
+	"name": "keycast",
+	"private": true,
+	"scripts": {
+		"dev": "concurrently -n 'rust,web' -c 'blue,green' \"bun run dev:backend\" \"bun run dev:web\"",
+		"dev:backend": "cd backend && RUST_LOG=debug cargo watch -x run",
+		"dev:web": "cd web && bun run dev",
+		"build": "concurrently -n 'rust,web' -c 'blue,green' \"bun run build:backend\" \"bun run build:web\"",
+		"build:backend": "cd backend && cargo build",
+		"build:web": "cd web && bun run build"
+	},
+	"devDependencies": {
+		"concurrently": "^9.1.0"
+	}
+}

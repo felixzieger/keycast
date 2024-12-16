@@ -1,0 +1,139 @@
+<script lang="ts">
+import { goto } from "$app/navigation";
+import { page } from "$app/stores";
+import AdminPill from "$lib/components/AdminPill.svelte";
+import Avatar from "$lib/components/Avatar.svelte";
+import Loader from "$lib/components/Loader.svelte";
+import Name from "$lib/components/Name.svelte";
+import PageSection from "$lib/components/PageSection.svelte";
+import { getCurrentUser } from "$lib/currentUser.svelte";
+import { KeycastApi } from "$lib/keycast_api.svelte";
+import ndk from "$lib/ndk.svelte";
+import type { StoredKey, TeamWithRelations, User } from "$lib/types";
+import { truncatedNpubForPubkey } from "$lib/utils/nostr";
+import { type NDKEvent, NDKNip07Signer } from "@nostr-dev-kit/ndk";
+import { toast } from "svelte-hot-french-toast";
+
+const { id } = $page.params;
+
+const api = new KeycastApi();
+const user = $derived(getCurrentUser()?.user);
+let isLoading = $state(true);
+let unsignedAuthEvent: NDKEvent | null = $state(null);
+let encodedAuthEvent: string | null = $state(null);
+let team: TeamWithRelations | null = $state(null);
+const users: User[] = $derived(team ? (team as TeamWithRelations).users : []);
+const storedKeys: StoredKey[] = $derived(
+    team ? (team as TeamWithRelations).stored_keys : [],
+);
+
+$effect(() => {
+    if (user?.pubkey && !unsignedAuthEvent) {
+        api.buildUnsignedAuthEvent(`/teams/${id}`, "GET", user.pubkey).then(
+            async (event) => {
+                unsignedAuthEvent = event;
+                if (unsignedAuthEvent) {
+                    if (!ndk.signer) {
+                        ndk.signer = new NDKNip07Signer();
+                    }
+                    await unsignedAuthEvent.sign();
+                    encodedAuthEvent = `Nostr ${btoa(JSON.stringify(unsignedAuthEvent))}`;
+                    api.get(`/teams/${id}`, {
+                        headers: { Authorization: encodedAuthEvent },
+                    })
+                        .then((teamResponse) => {
+                            team = teamResponse as TeamWithRelations;
+                        })
+                        .finally(() => {
+                            isLoading = false;
+                        });
+                }
+            },
+        );
+    }
+});
+
+async function deleteTeam() {
+    if (!user?.pubkey) return;
+    if (
+        confirm(
+            "Are you sure you want to delete this team? This action is irreversible.",
+        )
+    ) {
+        const authEvent = await api.buildUnsignedAuthEvent(
+            `/teams/${id}`,
+            "DELETE",
+            user?.pubkey,
+        );
+        if (!ndk.signer) {
+            ndk.signer = new NDKNip07Signer();
+        }
+        await authEvent?.sign();
+
+        api.delete(`/teams/${id}`, {
+            headers: {
+                Authorization: `Nostr ${btoa(JSON.stringify(authEvent))}`,
+            },
+        }).then(() => {
+            toast.success("Team deleted successfully");
+            goto("/teams");
+        });
+    }
+}
+</script>
+
+{#if isLoading}
+    <Loader extraClasses="items-center justify-center mt-40" />
+{:else if team}
+    <h1 class="page-header">{team?.team.name}</h1>
+
+    <PageSection title="Members">
+        <div class="card-grid mb-4">
+            {#each users as user}
+                <div class="card flex !flex-row gap-4 ">
+                    <Avatar user={ndk.getUser({ pubkey: user.user_public_key })} extraClasses="w-12 h-12" />
+                    <div class="flex flex-col gap-1">
+                        <span class="font-semibold">
+                            <Name user={ndk.getUser({ pubkey: user.user_public_key })} />
+                        </span>
+                        <span class="font-mono text-xs text-gray-500">
+                            {truncatedNpubForPubkey(user.user_public_key)}&hellip;
+                        </span>
+                    </div>
+                    <AdminPill {user} />
+                </div>
+            {/each}
+        </div>
+        <a href={`/teams/${id}/users/new`} class="button button-primary">Add Member</a>
+    </PageSection>
+
+
+    <PageSection title="Keys">
+        {#if storedKeys.length === 0}
+            <p class="text-gray-500 mb-4">No keys found</p>
+            <a href={`/teams/${id}/keys/new`} class="button button-primary">Add Key</a>
+        {:else}
+            <div class="card-grid">
+                {#each storedKeys as key}
+                    <div class="card flex !flex-row gap-4 ">
+                    <Avatar user={ndk.getUser({ pubkey: key.public_key })} extraClasses="w-12 h-12" />
+                    <div class="flex flex-col gap-1">
+                        <span class="font-semibold">
+                            <Name user={ndk.getUser({ pubkey: key.public_key })} />
+                        </span>
+                        <span class="font-mono text-xs text-gray-500">
+                            {truncatedNpubForPubkey(key.public_key)}&hellip;
+                            </span>
+                        </div>
+                    </div>
+                {/each}
+            </div>
+        {/if}
+    </PageSection>
+
+    {#if team?.users.some((team_user) => team_user.user_public_key === user?.pubkey && team_user.role === "admin")}
+        <PageSection title="Danger Zone">
+            <button onclick={deleteTeam} class="button button-danger">Delete Team</button>
+        </PageSection>
+    {/if}
+{/if}
