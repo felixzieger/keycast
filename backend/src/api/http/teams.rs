@@ -1,6 +1,6 @@
 use axum::{extract::Path, extract::State, http::StatusCode, Json};
 use chrono::DateTime;
-use nostr_sdk::{PublicKey, SecretKey};
+use nostr_sdk::{Keys, PublicKey};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
@@ -42,13 +42,7 @@ pub struct AddTeammateRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RemoveTeammateRequest {
-    pub user_public_key: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct AddKeyRequest {
-    pub public_key: String,
     pub name: String,
     pub secret_key: String,
 }
@@ -187,16 +181,11 @@ pub async fn add_user(
 pub async fn remove_user(
     State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
-    Path(team_id): Path<u32>,
-    Json(request): Json<RemoveTeammateRequest>,
+    Path((team_id, user_public_key)): Path<(u32, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
-    tracing::debug!(
-        "Removing user {} from team {}",
-        request.user_public_key,
-        team_id
-    );
+    tracing::debug!("Removing user {} from team {}", user_public_key, team_id);
 
-    let user_public_key = PublicKey::from_hex(&request.user_public_key)
+    let user_public_key = PublicKey::from_hex(&user_public_key)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     Team::remove_user(&pool, &event.pubkey, team_id, &user_public_key)
@@ -214,18 +203,16 @@ pub async fn add_key(
 ) -> Result<Json<StoredKey>, (StatusCode, String)> {
     tracing::debug!("Adding key to team for user: {}", event.pubkey.to_hex());
 
-    let public_key = PublicKey::from_hex(&request.public_key)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-    let secret_key = SecretKey::from_hex(&request.secret_key)
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let keys =
+        Keys::parse(&request.secret_key).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let key = Team::add_key(
         &pool,
         &event.pubkey,
         team_id,
         &request.name,
-        &public_key,
-        &secret_key,
+        &keys.public_key(),
+        keys.secret_key(),
     )
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

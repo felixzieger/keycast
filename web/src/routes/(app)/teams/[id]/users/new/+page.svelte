@@ -16,7 +16,7 @@ const user = $derived(getCurrentUser()?.user);
 
 let unsignedAuthEvent: NDKEvent | null = $state(null);
 let pubkeyOrNpub: string = $state("");
-let role: "admin" | "member" = $state("member");
+let role: "Admin" | "Member" = $state("Member");
 let errorMessage: string | null = $state(null);
 
 async function addTeammate() {
@@ -48,11 +48,19 @@ async function addTeammate() {
                 ndk.signer = new NDKNip07Signer();
             }
             await unsignedAuthEvent.sign();
+            console.log(unsignedAuthEvent);
             const encodedAuthEvent = `Nostr ${btoa(JSON.stringify(unsignedAuthEvent))}`;
-            api.post<User>(`/teams/${id}/keys`, {
-                headers: { Authorization: encodedAuthEvent },
-            })
-                .then((newUser) => {
+            api.post<User>(
+                `/teams/${id}/users`,
+                {
+                    user_public_key: ndkUser.pubkey,
+                    role,
+                },
+                {
+                    headers: { Authorization: encodedAuthEvent },
+                },
+            )
+                .then((_newUser) => {
                     toast.success("Teammate added successfully");
                     goto(`/teams/${id}`);
                 })
@@ -64,24 +72,23 @@ async function addTeammate() {
     });
 }
 </script>
-    
-    <h1 class="page-header">Add Teammate</h1>
-    
-    <form onsubmit={() => addTeammate()}>
-        <div class="form-group">
-            <label for="pubkey">Public key or npub</label>
-            <input type="text" bind:value={pubkeyOrNpub} placeholder="npub1..." />
-            {#if errorMessage}
-                <span class="input-error">{errorMessage}</span>
-            {/if}
-        </div>
-        <div class="form-group">
-            <label for="role">Role</label>
-            <select bind:value={role}>
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
-            </select>
-        </div>
-        <button type="submit" class="button button-primary">Add Teammate</button>
-    </form>
-    
+
+<h1 class="page-header">Add Teammate</h1>
+
+<form onsubmit={() => addTeammate()}>
+    <div class="form-group">
+        <label for="pubkey">Public key or npub</label>
+        <input type="text" bind:value={pubkeyOrNpub} placeholder="npub1..." />
+        {#if errorMessage}
+            <span class="input-error">{errorMessage}</span>
+        {/if}
+    </div>
+    <div class="form-group">
+        <label for="role">Role</label>
+        <select bind:value={role}>
+            <option value="Member">Member</option>
+            <option value="Admin">Admin</option>
+        </select>
+    </div>
+    <button type="submit" class="button button-primary">Add Teammate</button>
+</form>

@@ -41,6 +41,7 @@ where
         let event = extract_auth_event_from_header(auth_header)
             .map_err(|e| (StatusCode::UNAUTHORIZED, e.to_string()))?;
 
+        tracing::debug!("Extracted auth event: {:#?}", event);
         Ok(AuthEvent(event))
     }
 }

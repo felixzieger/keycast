@@ -2,6 +2,7 @@ mod api;
 mod authorization;
 mod cli;
 mod database;
+mod encryption;
 mod models;
 
 use clap::Parser;

@@ -12,6 +12,7 @@ import ndk from "$lib/ndk.svelte";
 import type { StoredKey, TeamWithRelations, User } from "$lib/types";
 import { truncatedNpubForPubkey } from "$lib/utils/nostr";
 import { type NDKEvent, NDKNip07Signer } from "@nostr-dev-kit/ndk";
+import { DotsThreeVertical } from "phosphor-svelte";
 import { toast } from "svelte-hot-french-toast";
 
 const { id } = $page.params;
@@ -22,10 +23,8 @@ let isLoading = $state(true);
 let unsignedAuthEvent: NDKEvent | null = $state(null);
 let encodedAuthEvent: string | null = $state(null);
 let team: TeamWithRelations | null = $state(null);
-const users: User[] = $derived(team ? (team as TeamWithRelations).users : []);
-const storedKeys: StoredKey[] = $derived(
-    team ? (team as TeamWithRelations).stored_keys : [],
-);
+let users: User[] = $state([]);
+let storedKeys: StoredKey[] = $state([]);
 
 $effect(() => {
     if (user?.pubkey && !unsignedAuthEvent) {
@@ -43,6 +42,8 @@ $effect(() => {
                     })
                         .then((teamResponse) => {
                             team = teamResponse as TeamWithRelations;
+                            users = team.users;
+                            storedKeys = team.stored_keys;
                         })
                         .finally(() => {
                             isLoading = false;
@@ -80,6 +81,43 @@ async function deleteTeam() {
         });
     }
 }
+
+async function showUserMenu(user: User) {
+    const menu = document.getElementById(`user-menu-${user.user_public_key}`);
+    if (menu) {
+        menu.classList.toggle("hidden");
+    }
+}
+
+async function removeUser(userToRemove: User) {
+    if (!user?.pubkey) return;
+    if (!confirm("Are you sure you want to remove this user?")) return;
+
+    const authEvent = await api.buildUnsignedAuthEvent(
+        `/teams/${id}/users/${userToRemove.user_public_key}`,
+        "DELETE",
+        user?.pubkey,
+    );
+    if (!ndk.signer) {
+        ndk.signer = new NDKNip07Signer();
+    }
+    await authEvent?.sign();
+
+    api.delete(`/teams/${id}/users/${userToRemove.user_public_key}`, {
+        headers: {
+            Authorization: `Nostr ${btoa(JSON.stringify(authEvent))}`,
+        },
+    })
+        .then(() => {
+            toast.success("User removed successfully");
+            users = users.filter(
+                (user) => user.user_public_key !== userToRemove.user_public_key,
+            );
+        })
+        .catch((error) => {
+            toast.error("Failed to remove user");
+        });
+}
 </script>
 
 {#if isLoading}
@@ -90,7 +128,7 @@ async function deleteTeam() {
     <PageSection title="Members">
         <div class="card-grid mb-4">
             {#each users as user}
-                <div class="card flex !flex-row gap-4 ">
+                <div class="card flex !flex-row gap-4 relative">
                     <Avatar user={ndk.getUser({ pubkey: user.user_public_key })} extraClasses="w-12 h-12" />
                     <div class="flex flex-col gap-1">
                         <span class="font-semibold">
@@ -101,6 +139,10 @@ async function deleteTeam() {
                         </span>
                     </div>
                     <AdminPill {user} />
+                    <button onclick={() => showUserMenu(user)} class="absolute top-1.5 right-1"><DotsThreeVertical size={20} weight="bold" class="text-gray-500 hover:text-gray-200" /></button>
+                    <div id={`user-menu-${user.user_public_key}`} class="hidden absolute top-8 right-1 bg-gray-700 ring-1 ring-gray-600 shadow-lg rounded-md p-2 text-sm">
+                        <button onclick={() => removeUser(user)} class="text-gray-200 hover:text-white">Remove User</button>
+                    </div>
                 </div>
             {/each}
         </div>
@@ -131,7 +173,7 @@ async function deleteTeam() {
         {/if}
     </PageSection>
 
-    {#if team?.users.some((team_user) => team_user.user_public_key === user?.pubkey && team_user.role === "admin")}
+    {#if team?.users.some((team_user) => team_user.user_public_key === user?.pubkey && team_user.role === "Admin")}
         <PageSection title="Danger Zone">
             <button onclick={deleteTeam} class="button button-danger">Delete Team</button>
         </PageSection>

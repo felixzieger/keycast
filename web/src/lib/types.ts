@@ -9,7 +9,7 @@ export type StoredKey = {
 
 export type User = {
     user_public_key: string;
-    role: "admin" | "member";
+    role: "Admin" | "Member";
     created_at: Date;
     updated_at: Date;
 };

@@ -1,3 +1,4 @@
+use crate::encryption::{file_key_manager::FileKeyManager, EncryptionError, KeyManager};
 use crate::models::stored_key::StoredKey;
 use crate::models::user::{TeamUser, TeamUserRole, User, UserError};
 use chrono::DateTime;
@@ -20,6 +21,9 @@ pub enum TeamError {
 
     #[error("User is already a member of the team")]
     UserAlreadyMember,
+
+    #[error("Encryption error: {0}")]
+    Encryption(#[from] EncryptionError),
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
@@ -382,6 +386,14 @@ impl Team {
         }
 
         // TODO: Encrypt the secret key using the master app key
+        let key_manager =
+            FileKeyManager::new().map_err(|e| EncryptionError::Configuration(e.to_string()))?;
+
+        // Encrypt the secret key
+        let encrypted_secret = key_manager
+            .encrypt(secret_key.to_secret_hex().as_bytes())
+            .await
+            .map_err(|e| TeamError::Database(sqlx::Error::Protocol(e.to_string())))?;
 
         // Insert the key
         let key = sqlx::query_as::<_, StoredKey>(
@@ -394,7 +406,7 @@ impl Team {
         .bind(team_id)
         .bind(name)
         .bind(public_key.to_hex())
-        .bind(secret_key.to_secret_hex())
+        .bind(encrypted_secret)
         .fetch_one(&mut *tx)
         .await?;
 
