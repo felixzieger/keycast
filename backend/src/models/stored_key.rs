@@ -1,11 +1,8 @@
 use crate::encryption::KeyManagerError;
-use crate::get_key_manager;
 use crate::models::user::UserError;
 use chrono::DateTime;
-use nostr_sdk::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -21,9 +18,6 @@ pub enum KeyError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
-
-    #[error("User is not authorized to perform this action")]
-    NotAuthorized,
 
     #[error("User is not an admin of the team")]
     NotAdmin(#[from] UserError),
@@ -64,30 +58,5 @@ impl From<StoredKey> for PublicStoredKey {
             created_at: key.created_at,
             updated_at: key.updated_at,
         }
-    }
-}
-
-impl StoredKey {
-    pub async fn for_user(
-        pool: &SqlitePool,
-        user_pubkey: &PublicKey,
-    ) -> Result<Vec<Self>, KeyError> {
-        let query = "SELECT * FROM stored_keys WHERE team_id IN (SELECT team_id FROM team_users WHERE user_public_key = $1)";
-        sqlx::query_as::<_, StoredKey>(query)
-            .bind(user_pubkey.to_hex())
-            .fetch_all(pool)
-            .await
-            .map_err(KeyError::from)
-    }
-
-    pub async fn decrypted_secret_key(&self) -> Result<SecretKey, KeyError> {
-        let key_manager = get_key_manager()?;
-
-        let decrypted_secret = key_manager
-            .decrypt(&self.secret_key)
-            .await
-            .map_err(|e| KeyError::Database(sqlx::Error::Protocol(e.to_string())))?;
-
-        Ok(SecretKey::from_slice(&decrypted_secret)?)
     }
 }

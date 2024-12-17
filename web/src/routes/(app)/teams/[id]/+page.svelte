@@ -151,31 +151,33 @@ async function removeUser(userToRemove: User) {
 
 
     <PageSection title="Keys">
-        {#if storedKeys.length === 0}
-            <p class="text-gray-500 mb-4">No keys found</p>
-            <a href={`/teams/${id}/keys/new`} class="button button-primary">Add Key</a>
-        {:else}
-            <div class="card-grid">
-                {#each storedKeys as key}
-                    <a href={`/teams/${id}/keys/${key.public_key}`} class="card flex !flex-row gap-4 ">
-                        <Avatar user={ndk.getUser({ pubkey: key.public_key })} extraClasses="w-12 h-12" />
-                        <div class="flex flex-col gap-1">
-                            <span class="font-semibold">
-                                {key.name}
-                            </span>
-                            <div class="flex flex-row gap-1">
-                                <span class="text-xs text-gray-500">
-                                    <Name user={ndk.getUser({ pubkey: key.public_key })} />
+        <div class="flex flex-col gap-4 items-start">
+            {#if storedKeys.length === 0}
+                <p class="text-gray-500">No keys found</p>
+            {:else}
+                <div class="card-grid">
+                    {#each storedKeys as key}
+                        <a href={`/teams/${id}/keys/${key.public_key}`} class="card flex !flex-row gap-4 ">
+                            <Avatar user={ndk.getUser({ pubkey: key.public_key })} extraClasses="w-12 h-12" />
+                            <div class="flex flex-col gap-1">
+                                <span class="font-semibold">
+                                    {key.name}
                                 </span>
-                                <span class="font-mono text-xs text-gray-500">
-                                    ({truncatedNpubForPubkey(key.public_key)}&hellip;)
-                                </span>
+                                <div class="flex flex-row gap-1">
+                                    <span class="text-xs text-gray-500">
+                                        <Name user={ndk.getUser({ pubkey: key.public_key })} />
+                                    </span>
+                                    <span class="font-mono text-xs text-gray-500">
+                                        ({truncatedNpubForPubkey(key.public_key)}&hellip;)
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    </a>
-                {/each}
-            </div>
-        {/if}
+                        </a>
+                    {/each}
+                </div>
+            {/if}
+            <a href={`/teams/${id}/keys/new`} class="button button-primary">Add Key</a>
+        </div>
     </PageSection>
 
     {#if team?.users.some((team_user) => team_user.user_public_key === user?.pubkey && team_user.role === "Admin")}

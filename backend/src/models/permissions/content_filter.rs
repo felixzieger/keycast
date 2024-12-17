@@ -7,7 +7,6 @@ pub struct ContentFilterConfig {
     pub blocked_words: Option<Vec<String>>,
 }
 
-/// Default to allow all kinds (NONE means allow all)
 impl Default for ContentFilterConfig {
     fn default() -> Self {
         Self {

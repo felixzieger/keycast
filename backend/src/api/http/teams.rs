@@ -5,9 +5,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::api::extractors::AuthEvent;
-use crate::models::authorization::Authorization;
-use crate::models::stored_key::{PublicStoredKey, StoredKey};
-use crate::models::team::{Team, TeamWithRelations};
+use crate::models::stored_key::StoredKey;
+use crate::models::team::{KeyWithRelations, Team, TeamWithRelations};
 use crate::models::user::{TeamUser, TeamUserRole};
 
 #[derive(Debug, Serialize)]
@@ -23,13 +22,6 @@ pub struct TeamWithRelationsResponse {
     pub team: TeamResponse,
     pub users: Vec<TeamUser>,
     pub stored_keys: Vec<StoredKey>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct KeyWithRelationsResponse {
-    pub stored_key: PublicStoredKey,
-    pub team: TeamResponse,
-    pub authorizations: Vec<Authorization>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -228,33 +220,36 @@ pub async fn add_key(
     Ok(Json(key))
 }
 
+pub async fn remove_key(
+    State(pool): State<SqlitePool>,
+    AuthEvent(event): AuthEvent,
+    Path((team_id, pubkey)): Path<(u32, String)>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    tracing::debug!("Removing key {} from team {}", pubkey, team_id);
+
+    let pubkey =
+        PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    Team::remove_key(&pool, &event.pubkey, team_id, &pubkey)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 pub async fn get_key(
     State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path((team_id, pubkey)): Path<(u32, String)>,
-) -> Result<Json<KeyWithRelationsResponse>, (StatusCode, String)> {
+) -> Result<Json<KeyWithRelations>, (StatusCode, String)> {
     tracing::debug!("Getting key {} for team {}", pubkey, team_id);
 
     let pubkey =
         PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let team = Team::get(&pool, &event.pubkey, team_id)
+    let key_with_relations = Team::get_key_with_relations(&pool, &event.pubkey, team_id, &pubkey)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let key = Team::get_key(&pool, &event.pubkey, team_id, &pubkey)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let authorizations = Authorization::for_key(&pool, &event.pubkey, team_id, &pubkey)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-
-    let response = KeyWithRelationsResponse {
-        team: team.team.into(),
-        stored_key: key.into(),
-        authorizations: vec![],
-    };
-
-    Ok(Json(response))
+    Ok(Json(key_with_relations))
 }

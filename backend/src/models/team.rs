@@ -1,4 +1,5 @@
 use crate::encryption::{file_key_manager::FileKeyManager, EncryptionError, KeyManager};
+use crate::models::authorization::AuthorizationWithPolicy;
 use crate::models::stored_key::StoredKey;
 use crate::models::user::{TeamUser, TeamUserRole, User, UserError};
 use chrono::DateTime;
@@ -39,6 +40,13 @@ pub struct TeamWithRelations {
     pub team: Team,
     pub team_users: Vec<TeamUser>, // Use team_user here so we get the role
     pub stored_keys: Vec<StoredKey>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KeyWithRelations {
+    pub team: Team,
+    pub stored_key: StoredKey,
+    pub authorizations: Vec<AuthorizationWithPolicy>,
 }
 
 impl Team {
@@ -414,18 +422,63 @@ impl Team {
         Ok(key)
     }
 
-    pub async fn get_key(
+    pub async fn remove_key(
         pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         pubkey: &PublicKey,
-    ) -> Result<StoredKey, TeamError> {
-        // Verify teammate status before getting key
-        if !User::is_team_teammate(pool, user_pubkey, team_id).await? {
+    ) -> Result<(), TeamError> {
+        let mut tx = pool.begin().await?;
+
+        // Verify admin status before removing key
+        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
-        let key = sqlx::query_as::<_, StoredKey>(
+        // Delete all user_authorizations for this key
+        sqlx::query("DELETE FROM user_authorizations WHERE authorization_id IN (SELECT id FROM authorizations WHERE stored_key_id = ?1)")
+            .bind(pubkey.to_hex())
+            .execute(&mut *tx)
+            .await?;
+
+        // Delete all authorizations for this key
+        sqlx::query("DELETE FROM authorizations WHERE stored_key_id = ?1")
+            .bind(pubkey.to_hex())
+            .execute(&mut *tx)
+            .await?;
+
+        // Delete the key
+        sqlx::query("DELETE FROM stored_keys WHERE team_id = ?1 AND public_key = ?2")
+            .bind(team_id)
+            .bind(pubkey.to_hex())
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn get_key_with_relations(
+        pool: &SqlitePool,
+        user_pubkey: &PublicKey,
+        team_id: u32,
+        pubkey: &PublicKey,
+    ) -> Result<KeyWithRelations, TeamError> {
+        // Verify admin status before getting key
+        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+            return Err(TeamError::NotAuthorized);
+        }
+
+        let team = sqlx::query_as::<_, Team>(
+            r#"
+            SELECT * FROM teams WHERE id = ?1
+            "#,
+        )
+        .bind(team_id)
+        .fetch_one(pool)
+        .await?;
+
+        let stored_key = sqlx::query_as::<_, StoredKey>(
             r#"
             SELECT * FROM stored_keys WHERE team_id = ?1 AND public_key = ?2
             "#,
@@ -434,6 +487,23 @@ impl Team {
         .bind(pubkey.to_hex())
         .fetch_one(pool)
         .await?;
-        Ok(key)
+
+        let authorizations = sqlx::query_as::<_, AuthorizationWithPolicy>(
+            r#"
+            SELECT a.*, p.* 
+            FROM authorizations a
+            LEFT JOIN policies p ON p.id = a.policy_id
+            WHERE a.stored_key_id = ?1
+            "#,
+        )
+        .bind(stored_key.id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(KeyWithRelations {
+            team,
+            stored_key,
+            authorizations,
+        })
     }
 }

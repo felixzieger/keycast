@@ -1,13 +1,20 @@
 <script lang="ts">
+import { goto } from "$app/navigation";
 import { page } from "$app/stores";
 import Avatar from "$lib/components/Avatar.svelte";
+import Copy from "$lib/components/Copy.svelte";
 import Loader from "$lib/components/Loader.svelte";
 import Name from "$lib/components/Name.svelte";
 import PageSection from "$lib/components/PageSection.svelte";
 import { getCurrentUser } from "$lib/currentUser.svelte";
 import { KeycastApi } from "$lib/keycast_api.svelte";
 import ndk from "$lib/ndk.svelte";
-import { type StoredKey, type Team, type TeamWithKey } from "$lib/types";
+import type {
+    AuthorizationWithPolicy,
+    KeyWithRelations,
+    StoredKey,
+    Team,
+} from "$lib/types";
 import { formattedDate } from "$lib/utils/dates";
 import {
     type NDKEvent,
@@ -27,7 +34,8 @@ let unsignedAuthEvent: NDKEvent | null = $state(null);
 let encodedAuthEvent: string | null = $state(null);
 let team: Team | null = $state(null);
 let key: StoredKey | null = $state(null);
-let keyUser: NDKUser | null = $state(null);
+let authorizations: AuthorizationWithPolicy[] = $state([]);
+let keyUser: NDKUser | null = ndk.getUser({ pubkey });
 let keyUserProfile: NDKUserProfile | null = $state(null);
 
 $effect(() => {
@@ -48,8 +56,10 @@ $effect(() => {
                     headers: { Authorization: encodedAuthEvent },
                 })
                     .then((teamKeyResponse) => {
-                        key = (teamKeyResponse as TeamWithKey).stored_key;
-                        team = (teamKeyResponse as TeamWithKey).team;
+                        key = (teamKeyResponse as KeyWithRelations).stored_key;
+                        team = (teamKeyResponse as KeyWithRelations).team;
+                        authorizations = (teamKeyResponse as KeyWithRelations)
+                            .authorizations;
                     })
                     .finally(() => {
                         isLoading = false;
@@ -58,15 +68,47 @@ $effect(() => {
         });
     }
 
-    if (key && !keyUser) {
-        keyUser = ndk.getUser({ pubkey: key.public_key });
+    if (key && !keyUserProfile) {
         keyUser.fetchProfile().then((profile) => {
             keyUserProfile = profile;
         });
     }
 });
 
-$inspect(key);
+async function removeKey() {
+    if (!user?.pubkey) return;
+    if (
+        !confirm(
+            "Are you sure you want to remove this key from the team?\n\nThis will remove all authorizations associated with this key.",
+        )
+    )
+        return;
+
+    const authEvent = await api.buildUnsignedAuthEvent(
+        `/teams/${id}/keys/${pubkey}`,
+        "DELETE",
+        user?.pubkey,
+    );
+    if (!ndk.signer) {
+        ndk.signer = new NDKNip07Signer();
+    }
+    await authEvent?.sign();
+
+    api.delete(`/teams/${id}/keys/${pubkey}`, {
+        headers: {
+            Authorization: `Nostr ${btoa(JSON.stringify(authEvent))}`,
+        },
+    })
+        .then(() => {
+            toast.success("Key removed successfully");
+            goto(`/teams/${id}`);
+        })
+        .catch((error) => {
+            toast.error("Failed to remove key");
+        });
+}
+
+$inspect(authorizations);
 </script>
 
 {#if isLoading}
@@ -84,16 +126,18 @@ $inspect(key);
             {/if}
         </div>
         <div class="relative p-6 flex items-center gap-4">
-            <Avatar user={ndk.getUser({ pubkey: key.public_key })} extraClasses="w-24 h-24" />
+            <Avatar user={ndk.getUser({ pubkey })} extraClasses="w-24 h-24" />
             <div class="flex flex-col gap-1">
                 <span class="font-semibold text-lg">
-                    <Name user={ndk.getUser({ pubkey: key.public_key })} />
+                    <Name user={ndk.getUser({ pubkey })} />
                 </span>
-                <span class="text-xs font-mono text-gray-300">
-                    {keyUser?.npub}
+                <span class="text-xs font-mono text-gray-300 flex flex-row gap-2 items-center justify-between">
+                    {keyUser.npub}
+                    <Copy value={keyUser.npub} size="18" />
                 </span>
-                <span class="text-xs font-mono text-gray-300">
-                    {keyUser?.pubkey}
+                <span class="text-xs font-mono text-gray-300 flex flex-row gap-2 items-center justify-between">
+                    {keyUser.pubkey}
+                    <Copy value={keyUser.pubkey} size="18" />
                 </span>
                 <span class="text-xs font-mono text-gray-400 mt-2">
                     Added: {formattedDate(new Date(key.created_at))}
@@ -103,11 +147,24 @@ $inspect(key);
     </div>
 
 
-    <PageSection title="Key Authentications">
-        <div class="card"></div>
+    <PageSection title="Key Authorizations">
+        <div class="flex flex-col gap-4 items-start">
+            {#if authorizations.length === 0}
+                <p class="text-gray-500">No authorizations found</p>
+            {:else}
+                {#each authorizations as authorization}
+                    <div class="card">
+                        <span>{authorization.authorization.secret}</span>
+                        <span>{authorization.policy.max_uses}</span>
+                        <span>{authorization.policy.expires_at}</span>
+                    </div>
+                {/each}
+            {/if}
+            <a href={`/teams/${id}/keys/${pubkey}/authorizations/new`} class="button button-primary">Add Authorization</a>
+        </div>
     </PageSection>
 
     <PageSection title="Danger Zone">
-        <button class="button button-danger">Remove key from team</button>
+        <button onclick={removeKey} class="button button-danger">Remove key from team</button>
     </PageSection>
 {/if}

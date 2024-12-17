@@ -20,7 +20,9 @@ export type Authorization = {
     secret: string;
     bunker_nsec: string;
     relays: string[];
-    policy: Policy;
+    policy_id: number;
+    max_uses: number;
+    expires_at: Date;
     created_at: Date;
     updated_at: Date;
 };
@@ -38,6 +40,12 @@ export type TeamWithRelations = {
     stored_keys: StoredKey[];
 };
 
+export type KeyWithRelations = {
+    team: Team;
+    stored_key: StoredKey;
+    authorizations: AuthorizationWithPolicy[];
+};
+
 export type TeamWithKey = {
     team: Team;
     stored_key: StoredKey;
@@ -52,4 +60,9 @@ export type Policy = {
     nip04decrypt: boolean;
     nip44encrypt: boolean;
     nip44decrypt: boolean;
+};
+
+export type AuthorizationWithPolicy = {
+    authorization: Authorization;
+    policy: Policy;
 };

@@ -1,8 +1,9 @@
 use chrono::DateTime;
 use nostr_sdk::{Event, PublicKey};
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, FromRow, Serialize, Deserialize)]
 pub struct Permission {
     pub id: u32,
     pub identifier: String,
