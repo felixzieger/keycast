@@ -22,12 +22,7 @@ pub struct Database {
 
 impl Database {
     pub async fn new(db_path: PathBuf) -> Result<Self, DatabaseError> {
-        let db_url = format!("sqlite:{}", db_path.display());
-
-        // Create database directory if it doesn't exist
-        if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        let db_url = format!("{}", db_path.display());
 
         // Create database if it doesn't exist
         if !Sqlite::database_exists(&db_url).await.unwrap_or(false) {
