@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::api::extractors::AuthEvent;
+use crate::models::policy::Policy;
 use crate::models::stored_key::StoredKey;
 use crate::models::team::{KeyWithRelations, Team, TeamWithRelations};
 use crate::models::user::{TeamUser, TeamUserRole};
@@ -22,6 +23,7 @@ pub struct TeamWithRelationsResponse {
     pub team: TeamResponse,
     pub users: Vec<TeamUser>,
     pub stored_keys: Vec<StoredKey>,
+    pub policies: Vec<Policy>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +66,7 @@ impl From<TeamWithRelations> for TeamWithRelationsResponse {
             team: team.team.into(),
             users: team.team_users,
             stored_keys: team.stored_keys,
+            policies: team.policies,
         }
     }
 }

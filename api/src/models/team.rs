@@ -1,5 +1,6 @@
 use crate::encryption::{file_key_manager::FileKeyManager, EncryptionError, KeyManager};
 use crate::models::authorization::AuthorizationWithPolicy;
+use crate::models::policy::Policy;
 use crate::models::stored_key::StoredKey;
 use crate::models::user::{TeamUser, TeamUserRole, User, UserError};
 use chrono::DateTime;
@@ -40,6 +41,7 @@ pub struct TeamWithRelations {
     pub team: Team,
     pub team_users: Vec<TeamUser>, // Use team_user here so we get the role
     pub stored_keys: Vec<StoredKey>,
+    pub policies: Vec<Policy>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -83,10 +85,14 @@ impl Team {
                     .fetch_all(pool)
                     .await?;
 
+            // Get policies for this team
+            let policies = Team::get_policies(pool, team.id).await?;
+
             teams_with_relations.push(TeamWithRelations {
                 team,
                 team_users,
                 stored_keys,
+                policies,
             });
         }
 
@@ -128,10 +134,14 @@ impl Team {
                 .fetch_all(pool)
                 .await?;
 
+        // Get policies for this team
+        let policies = Team::get_policies(pool, team_id).await?;
+
         Ok(TeamWithRelations {
             team,
             team_users,
             stored_keys,
+            policies,
         })
     }
 
@@ -196,6 +206,7 @@ impl Team {
             team,
             team_users: vec![team_user],
             stored_keys: vec![],
+            policies: vec![],
         })
     }
 
@@ -505,5 +516,18 @@ impl Team {
             stored_key,
             authorizations,
         })
+    }
+
+    pub async fn get_policies(pool: &SqlitePool, team_id: u32) -> Result<Vec<Policy>, TeamError> {
+        let policies = sqlx::query_as::<_, Policy>(
+            r#"
+            SELECT * FROM policies WHERE team_id = ?1
+            "#,
+        )
+        .bind(team_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(policies)
     }
 }

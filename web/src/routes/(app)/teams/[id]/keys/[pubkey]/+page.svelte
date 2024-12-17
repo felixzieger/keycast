@@ -114,7 +114,11 @@ $inspect(authorizations);
 {#if isLoading}
     <Loader extraClasses="items-center justify-center mt-40" />
 {:else if team &&key}
-    <h1 class="page-header flex flex-row gap-1 items-center"><a href={`/teams/${id}`} class="bordered">{team.name}</a> <CaretRight size="20" class="text-gray-500" /> {key.name}</h1>
+    <h1 class="page-header flex flex-row gap-1 items-center">
+        <a href={`/teams/${id}`} class="bordered">{team.name}</a>
+        <CaretRight size="20" class="text-gray-500" />
+        {key.name}
+    </h1>
     <div
         class="relative"
     >
@@ -155,8 +159,8 @@ $inspect(authorizations);
                 {#each authorizations as authorization}
                     <div class="card">
                         <span>{authorization.authorization.secret}</span>
-                        <span>{authorization.policy.max_uses}</span>
-                        <span>{authorization.policy.expires_at}</span>
+                        <span>{authorization.authorization.max_uses}</span>
+                        <span>{authorization.authorization.expires_at}</span>
                     </div>
                 {/each}
             {/if}

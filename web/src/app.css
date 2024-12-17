@@ -2,6 +2,22 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
+:global(:root) {
+    color-scheme: dark;
+}
+
+:global(html) {
+    background-color: theme("colors.gray.900");
+    color: theme("colors.gray.100");
+}
+
+/* Force dark mode even if user's system is in light mode */
+:global(*) {
+    /* Prevent any light mode flashing */
+    transition: none !important;
+}
+
+
 :root {
     font-family: system-ui, -apple-system, sans-serif;
     background-color: theme("colors.gray.900");
@@ -63,7 +79,7 @@ a.bordered {
     @apply text-sm mb-1 text-gray-400;
 }
 
-input[type="text"], input[type="password"], select {
+input[type="text"], input[type="password"], select, input[type="number"], input[type="datetime-local"] {
     @apply bg-transparent text-gray-50 rounded-md px-2 py-1 ring-1 ring-gray-500;
 }
 

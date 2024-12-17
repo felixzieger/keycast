@@ -38,6 +38,7 @@ export type TeamWithRelations = {
     team: Team;
     users: User[];
     stored_keys: StoredKey[];
+    policies: Policy[];
 };
 
 export type KeyWithRelations = {
@@ -52,14 +53,11 @@ export type TeamWithKey = {
 };
 
 export type Policy = {
-    max_uses: number;
-    expires_at?: Date;
-    get_pubkey: boolean;
-    sign_kinds?: number[];
-    nip04encrypt: boolean;
-    nip04decrypt: boolean;
-    nip44encrypt: boolean;
-    nip44decrypt: boolean;
+    id: number;
+    name: string;
+    team_id: number;
+    created_at: Date;
+    updated_at: Date;
 };
 
 export type AuthorizationWithPolicy = {

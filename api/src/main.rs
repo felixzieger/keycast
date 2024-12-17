@@ -23,8 +23,8 @@ static KEY_MANAGER: OnceCell<Box<dyn KeyManager>> = OnceCell::new();
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load environment variables from .env file
     match dotenv() {
-        Ok(_) => println!("Successfully loaded .env file"),
-        Err(e) => println!("Error loading .env file: {}", e),
+        Ok(_) => tracing::debug!("Successfully loaded .env file"),
+        Err(e) => tracing::error!("Error loading .env file: {}", e),
     };
 
     // Initialize tracing with debug level

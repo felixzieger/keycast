@@ -49,6 +49,7 @@ impl User {
         Ok(count > 0)
     }
 
+    #[allow(dead_code)]
     pub async fn is_team_member(
         pool: &SqlitePool,
         pubkey: &PublicKey,
@@ -63,6 +64,7 @@ impl User {
         Ok(count > 0)
     }
 
+    #[allow(dead_code)]
     pub async fn is_team_teammate(
         pool: &SqlitePool,
         pubkey: &PublicKey,

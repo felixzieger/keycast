@@ -12,6 +12,7 @@ pub struct Permission {
     pub updated_at: DateTime<chrono::Utc>,
 }
 
+#[allow(dead_code)]
 pub trait PolicyPermission {
     fn identifier(&self) -> &'static str;
     fn can_sign(&self, event: &Event) -> bool;
