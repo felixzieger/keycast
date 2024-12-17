@@ -14,17 +14,14 @@ const api = new KeycastApi();
 const user = $derived(getCurrentUser()?.user);
 
 let unsignedAuthEvent: NDKEvent | null = $state(null);
-let secretKey: string = $state("");
-let encryptedSecretKey: string = $state("");
-let password: string = $state("");
 let keyName: string = $state("");
+let secretKey: string = $state("");
 let keyError: string | null = $state(null);
 
 async function createKey() {
     if (!user?.pubkey) return;
-    if ((!secretKey && !password) || !encryptedSecretKey) {
-        keyError =
-            "You must provide either an encrypted secret key or a private key and password.";
+    if (!secretKey) {
+        keyError = "You must provide a private key.";
         return;
     }
     if (!keyName) {
@@ -50,7 +47,7 @@ async function createKey() {
             const encodedAuthEvent = `Nostr ${btoa(JSON.stringify(unsignedAuthEvent))}`;
             api.post<StoredKey>(
                 `/teams/${id}/keys`,
-                { key_name: keyName, secret_key: secretKey },
+                { name: keyName, secret_key: secretKey },
                 {
                     headers: { Authorization: encodedAuthEvent },
                 },

@@ -5,6 +5,14 @@ use async_trait::async_trait;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+pub enum KeyManagerError {
+    #[error("Key manager already initialized")]
+    AlreadyInitialized,
+    #[error("Key manager not initialized")]
+    NotInitialized,
+}
+
+#[derive(Error, Debug)]
 pub enum EncryptionError {
     #[error("Encryption error: {0}")]
     Encryption(String),

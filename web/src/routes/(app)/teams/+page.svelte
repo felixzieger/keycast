@@ -111,13 +111,12 @@ async function createTeam(inline = false) {
 }
 </script>
 
-<div class="flex flex-row items-center justify-between">
-    <h1 class="page-header">Teams</h1>
+<div class="flex flex-row items-center justify-between mb-4">
+    <h1 class="page-header !mb-0">Teams</h1>
     {#if inlineTeamFormVisible}
         <form onsubmit={() => createTeam(true)}>
             <div class="flex flex-row gap-2">
                 <input bind:this={inlineTeamNameInput} type="text" placeholder="Team name" bind:value={inlineTeamName} />
-                
                 <button type="submit" class="button button-primary">
                     Create
                 </button>
@@ -155,7 +154,6 @@ async function createTeam(inline = false) {
             <form onsubmit={() => createTeam()}>
                 <div class="flex flex-row gap-2">
                     <input bind:this={teamNameInput} type="text" placeholder="Team name" bind:value={newTeamName} />
-                    
                     <button type="submit" class="button button-primary">
                         Create
                     </button>

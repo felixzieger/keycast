@@ -6,7 +6,8 @@ use aes_gcm::{
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rand::Rng;
-use std::path::Path;
+use std::env;
+use std::path::PathBuf;
 
 pub struct FileKeyManager {
     cipher: Aes256Gcm,
@@ -20,34 +21,19 @@ impl FileKeyManager {
     }
 
     fn load_key() -> Result<[u8; 32], EncryptionError> {
-        // Try to load from environment first
-        if let Ok(key) = std::env::var("MASTER_KEY") {
-            return BASE64
-                .decode(key)
-                .map_err(|e| EncryptionError::Configuration(e.to_string()))
-                .and_then(|k| {
-                    k.try_into().map_err(|_| {
-                        EncryptionError::Configuration("Invalid key length".to_string())
-                    })
-                });
-        }
+        let key_path = PathBuf::from(
+            env::var("MASTER_KEY")
+                .map_err(|_| EncryptionError::Configuration("MASTER_KEY not set".to_string()))?,
+        );
 
-        // If not in environment, try to load from file
-        let key_path = Path::new("master.key");
-        if key_path.exists() {
-            let key_str = std::fs::read_to_string(key_path)
-                .map_err(|e| EncryptionError::Configuration(e.to_string()))?;
-            let key_bytes = BASE64
-                .decode(key_str.trim())
-                .map_err(|e| EncryptionError::Configuration(e.to_string()))?;
-            key_bytes
-                .try_into()
-                .map_err(|_| EncryptionError::Configuration("Invalid key length".to_string()))
-        } else {
-            Err(EncryptionError::Configuration(
-                "No master key found".to_string(),
-            ))
-        }
+        let key_str = std::fs::read_to_string(key_path)
+            .map_err(|e| EncryptionError::Configuration(e.to_string()))?;
+
+        BASE64
+            .decode(key_str.trim())
+            .map_err(|e| EncryptionError::Configuration(e.to_string()))?
+            .try_into()
+            .map_err(|_| EncryptionError::Configuration("Invalid key length".to_string()))
     }
 }
 

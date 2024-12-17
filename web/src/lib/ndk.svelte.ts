@@ -6,7 +6,7 @@ import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie";
 let cacheAdapter: NDKCacheAdapter | undefined = $state(undefined);
 
 if (browser) {
-    cacheAdapter = new NDKCacheAdapterDexie({ dbName: "listr-v2" });
+    cacheAdapter = new NDKCacheAdapterDexie({ dbName: "keycast" });
 }
 
 export const ndkStore = new NDK({

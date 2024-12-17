@@ -413,4 +413,27 @@ impl Team {
         tx.commit().await?;
         Ok(key)
     }
+
+    pub async fn get_key(
+        pool: &SqlitePool,
+        user_pubkey: &PublicKey,
+        team_id: u32,
+        pubkey: &PublicKey,
+    ) -> Result<StoredKey, TeamError> {
+        // Verify teammate status before getting key
+        if !User::is_team_teammate(pool, user_pubkey, team_id).await? {
+            return Err(TeamError::NotAuthorized);
+        }
+
+        let key = sqlx::query_as::<_, StoredKey>(
+            r#"
+            SELECT * FROM stored_keys WHERE team_id = ?1 AND public_key = ?2
+            "#,
+        )
+        .bind(team_id)
+        .bind(pubkey.to_hex())
+        .fetch_one(pool)
+        .await?;
+        Ok(key)
+    }
 }

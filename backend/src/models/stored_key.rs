@@ -1,6 +1,8 @@
-use crate::models::user::{User, UserError};
+use crate::encryption::KeyManagerError;
+use crate::get_key_manager;
+use crate::models::user::UserError;
 use chrono::DateTime;
-use nostr_sdk::{Keys, PublicKey, SecretKey};
+use nostr_sdk::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::SqlitePool;
@@ -25,6 +27,9 @@ pub enum KeyError {
 
     #[error("User is not an admin of the team")]
     NotAdmin(#[from] UserError),
+
+    #[error("Key manager error: {0}")]
+    KeyManager(#[from] KeyManagerError),
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
@@ -33,9 +38,33 @@ pub struct StoredKey {
     pub team_id: u32,
     pub name: String,
     pub public_key: String, // hex pubkey
-    pub secret_key: String, // hex secret key
+    #[sqlx(skip)]
+    pub secret_key: Vec<u8>, // encrypted secret key in bytes
     pub created_at: DateTime<chrono::Utc>,
     pub updated_at: DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PublicStoredKey {
+    pub id: u32,
+    pub team_id: u32,
+    pub name: String,
+    pub public_key: String,
+    pub created_at: DateTime<chrono::Utc>,
+    pub updated_at: DateTime<chrono::Utc>,
+}
+
+impl From<StoredKey> for PublicStoredKey {
+    fn from(key: StoredKey) -> Self {
+        Self {
+            id: key.id,
+            team_id: key.team_id,
+            name: key.name,
+            public_key: key.public_key,
+            created_at: key.created_at,
+            updated_at: key.updated_at,
+        }
+    }
 }
 
 impl StoredKey {
@@ -51,57 +80,14 @@ impl StoredKey {
             .map_err(KeyError::from)
     }
 
-    pub async fn create(
-        team_id: u32,
-        name: String,
-        secret_key_string: String,
-        pool: &SqlitePool,
-    ) -> Result<Self, KeyError> {
-        let secret_key = SecretKey::parse(&secret_key_string)?.to_secret_hex();
-        let public_key = Keys::parse(&secret_key_string)?.public_key().to_hex();
+    pub async fn decrypted_secret_key(&self) -> Result<SecretKey, KeyError> {
+        let key_manager = get_key_manager()?;
 
-        let stored_key = Self {
-            id: 0, // Will be auto-incremented by the database
-            team_id,
-            name,
-            public_key,
-            secret_key,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
+        let decrypted_secret = key_manager
+            .decrypt(&self.secret_key)
+            .await
+            .map_err(|e| KeyError::Database(sqlx::Error::Protocol(e.to_string())))?;
 
-        let query = "INSERT INTO stored_keys (team_id, name, public_key, secret_key, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *";
-        let persisted = sqlx::query_as::<_, StoredKey>(query)
-            .bind(stored_key.team_id)
-            .bind(&stored_key.name)
-            .bind(&stored_key.public_key)
-            .bind(&stored_key.secret_key)
-            .bind(stored_key.created_at)
-            .bind(stored_key.updated_at)
-            .fetch_one(pool)
-            .await?;
-
-        Ok(persisted)
-    }
-
-    pub async fn update(
-        pool: &SqlitePool,
-        user_pubkey: &PublicKey,
-        team_id: u32,
-        name: &str,
-    ) -> Result<StoredKey, KeyError> {
-        let mut tx = pool.begin().await?;
-
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
-            return Err(KeyError::NotAuthorized);
-        }
-
-        let query = "UPDATE stored_keys SET name = $1 WHERE id = $2 RETURNING *";
-        let persisted = sqlx::query_as::<_, StoredKey>(query)
-            .bind(name)
-            .bind(team_id)
-            .fetch_one(&mut *tx)
-            .await?;
-        Ok(persisted)
+        Ok(SecretKey::from_slice(&decrypted_secret)?)
     }
 }

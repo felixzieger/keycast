@@ -157,17 +157,22 @@ async function removeUser(userToRemove: User) {
         {:else}
             <div class="card-grid">
                 {#each storedKeys as key}
-                    <div class="card flex !flex-row gap-4 ">
-                    <Avatar user={ndk.getUser({ pubkey: key.public_key })} extraClasses="w-12 h-12" />
-                    <div class="flex flex-col gap-1">
-                        <span class="font-semibold">
-                            <Name user={ndk.getUser({ pubkey: key.public_key })} />
-                        </span>
-                        <span class="font-mono text-xs text-gray-500">
-                            {truncatedNpubForPubkey(key.public_key)}&hellip;
+                    <a href={`/teams/${id}/keys/${key.public_key}`} class="card flex !flex-row gap-4 ">
+                        <Avatar user={ndk.getUser({ pubkey: key.public_key })} extraClasses="w-12 h-12" />
+                        <div class="flex flex-col gap-1">
+                            <span class="font-semibold">
+                                {key.name}
                             </span>
+                            <div class="flex flex-row gap-1">
+                                <span class="text-xs text-gray-500">
+                                    <Name user={ndk.getUser({ pubkey: key.public_key })} />
+                                </span>
+                                <span class="font-mono text-xs text-gray-500">
+                                    ({truncatedNpubForPubkey(key.public_key)}&hellip;)
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    </a>
                 {/each}
             </div>
         {/if}

@@ -1,8 +1,8 @@
 export type StoredKey = {
     id: number;
     name: string;
+    team_id: number;
     public_key: string;
-    encrypted_secret_key: string;
     created_at: Date;
     updated_at: Date;
 };
@@ -36,6 +36,11 @@ export type TeamWithRelations = {
     team: Team;
     users: User[];
     stored_keys: StoredKey[];
+};
+
+export type TeamWithKey = {
+    team: Team;
+    stored_key: StoredKey;
 };
 
 export type Policy = {

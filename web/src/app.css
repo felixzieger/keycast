@@ -11,6 +11,10 @@
     -moz-osx-font-smoothing: grayscale;
 }
 
+a.bordered {
+    @apply border-b border-gray-500 border-dashed hover:border-gray-300 hover:border-solid;
+}
+
 .page-header {
     @apply text-2xl font-bold mb-4;
 }

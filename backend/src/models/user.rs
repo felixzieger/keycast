@@ -48,4 +48,32 @@ impl User {
             .await?;
         Ok(count > 0)
     }
+
+    pub async fn is_team_member(
+        pool: &SqlitePool,
+        pubkey: &PublicKey,
+        team_id: u32,
+    ) -> Result<bool, UserError> {
+        let query = "SELECT COUNT(*) FROM team_users WHERE user_public_key = ?1 AND team_id = ?2 AND role = 'member'";
+        let count = sqlx::query_scalar::<_, i64>(query)
+            .bind(pubkey.to_hex())
+            .bind(team_id)
+            .fetch_one(pool)
+            .await?;
+        Ok(count > 0)
+    }
+
+    pub async fn is_team_teammate(
+        pool: &SqlitePool,
+        pubkey: &PublicKey,
+        team_id: u32,
+    ) -> Result<bool, UserError> {
+        let query = "SELECT COUNT(*) FROM team_users WHERE user_public_key = ?1 AND team_id = ?2";
+        let count = sqlx::query_scalar::<_, i64>(query)
+            .bind(pubkey.to_hex())
+            .bind(team_id)
+            .fetch_one(pool)
+            .await?;
+        Ok(count > 0)
+    }
 }
