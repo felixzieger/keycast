@@ -40,7 +40,7 @@ a.bordered {
 }
 
 .button {
-    @apply whitespace-nowrap shrink rounded-md px-2 py-1 text-sm font-medium text-white/90 hover:text-white ring-1 ring-offset-2 ring-offset-gray-900;
+    @apply whitespace-nowrap shrink rounded-md px-2 py-1 text-sm font-medium text-white/90 hover:text-white ring-1 ring-offset-2 ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed;
 }
 
 .button-primary {

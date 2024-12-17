@@ -9,7 +9,7 @@ import PageSection from "$lib/components/PageSection.svelte";
 import { getCurrentUser } from "$lib/currentUser.svelte";
 import { KeycastApi } from "$lib/keycast_api.svelte";
 import ndk from "$lib/ndk.svelte";
-import type { StoredKey, TeamWithRelations, User } from "$lib/types";
+import type { Policy, StoredKey, TeamWithRelations, User } from "$lib/types";
 import { truncatedNpubForPubkey } from "$lib/utils/nostr";
 import { type NDKEvent, NDKNip07Signer } from "@nostr-dev-kit/ndk";
 import { DotsThreeVertical } from "phosphor-svelte";
@@ -25,6 +25,7 @@ let encodedAuthEvent: string | null = $state(null);
 let team: TeamWithRelations | null = $state(null);
 let users: User[] = $state([]);
 let storedKeys: StoredKey[] = $state([]);
+let policies: Policy[] = $state([]);
 
 $effect(() => {
     if (user?.pubkey && !unsignedAuthEvent) {
@@ -44,6 +45,7 @@ $effect(() => {
                             team = teamResponse as TeamWithRelations;
                             users = team.users;
                             storedKeys = team.stored_keys;
+                            policies = team.policies;
                         })
                         .finally(() => {
                             isLoading = false;
@@ -177,6 +179,23 @@ async function removeUser(userToRemove: User) {
                 </div>
             {/if}
             <a href={`/teams/${id}/keys/new`} class="button button-primary">Add Key</a>
+        </div>
+    </PageSection>
+
+    <PageSection title="Policies">
+        <div class="flex flex-col gap-4">
+            {#if policies.length === 0}
+                <p class="text-gray-500">No policies found</p>
+            {:else}
+                <div class="card-grid">
+                    {#each policies as policy}
+                        <div class="card">
+                            <h3 class="text-lg font-semibold">{policy.name}</h3>
+                        </div>
+                    {/each}
+                </div>
+            {/if}
+            <a href={`/teams/${id}/policies/new`} class="button button-primary self-start">Add Policy</a>
         </div>
     </PageSection>
 

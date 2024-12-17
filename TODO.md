@@ -6,3 +6,10 @@
 - [ ] Rationalize all the teams methods
 
 ## Web
+
+- [ ] New policy form
+- [ ] Permissions form
+- [ ] Add breadcrumb to new key page
+- [ ] add remove key three dots to card
+- [ ] policy card (with remove button)
+- [ ] Audit log page

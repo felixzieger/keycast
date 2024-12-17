@@ -6,7 +6,7 @@ import { KeycastApi } from "$lib/keycast_api.svelte";
 import ndk from "$lib/ndk.svelte";
 import type { Policy, StoredKey, Team, TeamWithRelations } from "$lib/types";
 import { type NDKEvent, NDKNip07Signer } from "@nostr-dev-kit/ndk";
-import { CaretRight, X } from "phosphor-svelte";
+import { CaretRight, Plus, X } from "phosphor-svelte";
 import { toast } from "svelte-hot-french-toast";
 
 const { id, pubkey } = $page.params;
@@ -16,6 +16,7 @@ const user = $derived(getCurrentUser()?.user);
 let isLoading = $state(true);
 let unsignedAuthEvent: NDKEvent | null = $state(null);
 let encodedAuthEvent: string | null = $state(null);
+let policyFormVisible = $state(false);
 
 let maxUses: number = $state(0);
 let expiresAt: Date | null = $state(null);
@@ -25,6 +26,8 @@ let relaysString: string = $state(
 let relays: string[] = $derived(
     relaysString.split(",").map((relay) => relay.trim()),
 );
+
+let policyName: string = $state("");
 
 let teamWithRelations: TeamWithRelations | null = $state(null);
 let team: Team | null = $derived.by(() =>
@@ -67,6 +70,10 @@ $effect(() => {
 });
 
 async function createAuthorization() {}
+
+async function createPolicy() {}
+
+async function addPermission() {}
 </script>
 
 <h1 class="page-header flex flex-row gap-1 items-center">
@@ -116,8 +123,27 @@ async function createAuthorization() {}
                     {/each}
                 </div>
             {/if}
-            <button type="button" class="button self-start button-primary !my-0">Add Policy</button>
+            {#if !policyFormVisible}
+                <button onclick={() => policyFormVisible = !policyFormVisible} type="button" class="button self-start button-primary !my-0">Add Policy</button>
+            {/if}
+            {#if policyFormVisible}
+                <form onsubmit={() => createPolicy()}>
+                    <div class="form-group">
+                        <label for="policyName">Policy Name</label>
+                        <input type="text" bind:value={policyName} />
+                    </div>
+                    <button onclick={() => addPermission()} type="button" class="button self-start button-primary flex flex-row gap-2 items-center !text-xs !rounded-full">
+                        <Plus size={16} />
+                        <span>Add Permission</span>
+                    </button>
+                    <div class="form-group">
+                        
+                    </div>
+
+                    <button type="submit" class="button button-primary" disabled>Save Policy</button>
+                </form>
+            {/if}
         </div>
     </PageSection>
 
-    <button type="submit" class="button button-primary">Add Authorization</button>
+    <button type="submit" class="button button-primary" disabled>Add Authorization</button>
