@@ -6,10 +6,16 @@ import Avatar from "$lib/components/Avatar.svelte";
 import Loader from "$lib/components/Loader.svelte";
 import Name from "$lib/components/Name.svelte";
 import PageSection from "$lib/components/PageSection.svelte";
+import PolicyCard from "$lib/components/PolicyCard.svelte";
 import { getCurrentUser } from "$lib/currentUser.svelte";
 import { KeycastApi } from "$lib/keycast_api.svelte";
 import ndk from "$lib/ndk.svelte";
-import type { Policy, StoredKey, TeamWithRelations, User } from "$lib/types";
+import type {
+    PolicyWithPermissions,
+    StoredKey,
+    TeamWithRelations,
+    User,
+} from "$lib/types";
 import { truncatedNpubForPubkey } from "$lib/utils/nostr";
 import { type NDKEvent, NDKNip07Signer } from "@nostr-dev-kit/ndk";
 import { DotsThreeVertical } from "phosphor-svelte";
@@ -25,7 +31,7 @@ let encodedAuthEvent: string | null = $state(null);
 let team: TeamWithRelations | null = $state(null);
 let users: User[] = $state([]);
 let storedKeys: StoredKey[] = $state([]);
-let policies: Policy[] = $state([]);
+let policies: PolicyWithPermissions[] = $state([]);
 
 $effect(() => {
     if (user?.pubkey && !unsignedAuthEvent) {
@@ -43,7 +49,7 @@ $effect(() => {
                     })
                         .then((teamResponse) => {
                             team = teamResponse as TeamWithRelations;
-                            users = team.users;
+                            users = team.team_users;
                             storedKeys = team.stored_keys;
                             policies = team.policies;
                         })
@@ -159,7 +165,7 @@ async function removeUser(userToRemove: User) {
             {:else}
                 <div class="card-grid">
                     {#each storedKeys as key}
-                        <a href={`/teams/${id}/keys/${key.public_key}`} class="card flex !flex-row gap-4 ">
+                        <a href={`/teams/${id}/keys/${key.public_key}`} class="card hover-card flex !flex-row gap-4 ">
                             <Avatar user={ndk.getUser({ pubkey: key.public_key })} extraClasses="w-12 h-12" />
                             <div class="flex flex-col gap-1">
                                 <span class="font-semibold">
@@ -189,9 +195,7 @@ async function removeUser(userToRemove: User) {
             {:else}
                 <div class="card-grid">
                     {#each policies as policy}
-                        <div class="card">
-                            <h3 class="text-lg font-semibold">{policy.name}</h3>
-                        </div>
+                        <PolicyCard {policy} />
                     {/each}
                 </div>
             {/if}
@@ -199,7 +203,7 @@ async function removeUser(userToRemove: User) {
         </div>
     </PageSection>
 
-    {#if team?.users.some((team_user) => team_user.user_public_key === user?.pubkey && team_user.role === "Admin")}
+    {#if users && users.some((team_user) => team_user.user_public_key === user?.pubkey && team_user.role === "Admin")}
         <PageSection title="Danger Zone">
             <button onclick={deleteTeam} class="button button-danger">Delete Team</button>
         </PageSection>

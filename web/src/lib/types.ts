@@ -36,15 +36,15 @@ export type Team = {
 
 export type TeamWithRelations = {
     team: Team;
-    users: User[];
+    team_users: User[];
     stored_keys: StoredKey[];
-    policies: Policy[];
+    policies: PolicyWithPermissions[];
 };
 
 export type KeyWithRelations = {
     team: Team;
     stored_key: StoredKey;
-    authorizations: AuthorizationWithPolicy[];
+    authorizations: AuthorizationWithRelations[];
 };
 
 export type TeamWithKey = {
@@ -63,4 +63,47 @@ export type Policy = {
 export type AuthorizationWithPolicy = {
     authorization: Authorization;
     policy: Policy;
+};
+
+export type AuthorizationWithRelations = {
+    authorization: Authorization;
+    policy: Policy;
+    users: User[];
+    connection_string: string;
+};
+
+export type Permission = {
+    identifier: string;
+    config: JsonValue;
+    created_at: Date;
+    updated_at: Date;
+};
+
+export type PolicyWithPermissions = {
+    policy: Policy;
+    permissions: Permission[];
+};
+
+export const AVAILABLE_PERMISSIONS = [
+    "allowed_kinds",
+    "content_filter",
+    "encrypt_to_self",
+];
+
+export type JsonValue =
+    | string
+    | number
+    | boolean
+    | null
+    | JsonValue[]
+    | { [key: string]: JsonValue };
+
+export type AllowedKindsConfig = {
+    sign: number[] | null;
+    encrypt: number[] | null;
+    decrypt: number[] | null;
+};
+
+export type ContentFilterConfig = {
+    blocked_words: string[] | null;
 };

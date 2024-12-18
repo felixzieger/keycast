@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
 use crate::api::extractors::AuthEvent;
-use crate::models::policy::Policy;
+use crate::models::authorization::Authorization;
 use crate::models::stored_key::StoredKey;
 use crate::models::team::{KeyWithRelations, Team, TeamWithRelations};
 use crate::models::user::{TeamUser, TeamUserRole};
@@ -16,14 +16,6 @@ pub struct TeamResponse {
     pub name: String,
     pub created_at: DateTime<chrono::Utc>,
     pub updated_at: DateTime<chrono::Utc>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TeamWithRelationsResponse {
-    pub team: TeamResponse,
-    pub users: Vec<TeamUser>,
-    pub stored_keys: Vec<StoredKey>,
-    pub policies: Vec<Policy>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,6 +41,14 @@ pub struct AddKeyRequest {
     pub secret_key: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AddAuthorizationRequest {
+    pub max_uses: Option<u16>,
+    pub expires_at: Option<DateTime<chrono::Utc>>,
+    pub relays: Option<Vec<String>>,
+    pub policy_id: Option<u32>,
+}
+
 impl From<Team> for TeamResponse {
     fn from(team: Team) -> Self {
         Self {
@@ -60,40 +60,24 @@ impl From<Team> for TeamResponse {
     }
 }
 
-impl From<TeamWithRelations> for TeamWithRelationsResponse {
-    fn from(team: TeamWithRelations) -> Self {
-        Self {
-            team: team.team.into(),
-            users: team.team_users,
-            stored_keys: team.stored_keys,
-            policies: team.policies,
-        }
-    }
-}
-
 pub async fn list_teams(
     State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
-) -> Result<Json<Vec<TeamWithRelationsResponse>>, (StatusCode, String)> {
+) -> Result<Json<Vec<TeamWithRelations>>, (StatusCode, String)> {
     tracing::debug!("Listing teams for user: {}", event.pubkey.to_hex());
 
     let teams_with_relations = Team::for_user(&pool, &event.pubkey)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(
-        teams_with_relations
-            .into_iter()
-            .map(TeamWithRelationsResponse::from)
-            .collect(),
-    ))
+    Ok(Json(teams_with_relations))
 }
 
 pub async fn create_team(
     State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Json(request): Json<CreateTeamRequest>,
-) -> Result<Json<TeamWithRelationsResponse>, (StatusCode, String)> {
+) -> Result<Json<TeamWithRelations>, (StatusCode, String)> {
     tracing::debug!(
         "Creating team \"{}\" for user: {}",
         request.name,
@@ -104,14 +88,14 @@ pub async fn create_team(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(team_with_relations.into()))
+    Ok(Json(team_with_relations))
 }
 
 pub async fn get_team(
     State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path(team_id): Path<u32>,
-) -> Result<Json<TeamWithRelationsResponse>, (StatusCode, String)> {
+) -> Result<Json<TeamWithRelations>, (StatusCode, String)> {
     tracing::debug!(
         "Getting team {} for user: {}",
         team_id,
@@ -122,21 +106,21 @@ pub async fn get_team(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(team_with_relations.into()))
+    Ok(Json(team_with_relations))
 }
 
 pub async fn update_team(
     State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Json(request): Json<UpdateTeamRequest>,
-) -> Result<Json<TeamResponse>, (StatusCode, String)> {
+) -> Result<Json<Team>, (StatusCode, String)> {
     tracing::debug!("Updating team for user: {}", event.pubkey.to_hex());
 
     let team = Team::update(&pool, &event.pubkey, request.id, &request.name)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(team.into()))
+    Ok(Json(team))
 }
 
 pub async fn delete_team(
@@ -255,4 +239,27 @@ pub async fn get_key(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(key_with_relations))
+}
+
+pub async fn add_authorization(
+    State(pool): State<SqlitePool>,
+    AuthEvent(event): AuthEvent,
+    Path((team_id, pubkey)): Path<(u32, String)>,
+    Json(request): Json<AddAuthorizationRequest>,
+) -> Result<Json<Authorization>, (StatusCode, String)> {
+    tracing::debug!(
+        "Adding authorization to key {} for team {}",
+        pubkey,
+        team_id
+    );
+
+    let public_key =
+        PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+
+    let authorization =
+        Team::add_authorization(&pool, &event.pubkey, team_id, &public_key, request)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(authorization))
 }

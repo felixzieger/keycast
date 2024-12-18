@@ -64,7 +64,11 @@ a.bordered {
 }
 
 .card {
-    @apply p-4 bg-gray-800 rounded-lg ring-1 ring-gray-700 ring-offset-2 ring-offset-gray-900 flex flex-col gap-4 hover:ring-offset-gray-700 hover:ring-gray-600;
+    @apply p-4 bg-gray-800 rounded-lg ring-1 ring-gray-700 ring-offset-2 ring-offset-gray-900 flex flex-col gap-4;
+}
+
+.hover-card {
+    @apply hover:ring-offset-gray-700 hover:ring-gray-600 cursor-pointer;
 }
 
 .pill {

@@ -2,6 +2,16 @@ use crate::models::permission::Permission;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum PolicyError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("Policy not found")]
+    NotFound,
+}
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
 pub struct Policy {

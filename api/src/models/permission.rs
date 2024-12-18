@@ -1,7 +1,13 @@
 use chrono::DateTime;
-use nostr_sdk::{Event, PublicKey};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum PermissionError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+}
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
 pub struct Permission {
@@ -12,10 +18,11 @@ pub struct Permission {
     pub updated_at: DateTime<chrono::Utc>,
 }
 
-#[allow(dead_code)]
-pub trait PolicyPermission {
-    fn identifier(&self) -> &'static str;
-    fn can_sign(&self, event: &Event) -> bool;
-    fn can_encrypt(&self, recipient_pubkey: &PublicKey) -> bool;
-    fn can_decrypt(&self, sender_pubkey: &PublicKey) -> bool;
+#[derive(Debug, FromRow, Serialize, Deserialize)]
+pub struct PolicyPermission {
+    pub id: u32,
+    pub policy_id: u32,
+    pub permission_id: u32,
+    pub created_at: DateTime<chrono::Utc>,
+    pub updated_at: DateTime<chrono::Utc>,
 }

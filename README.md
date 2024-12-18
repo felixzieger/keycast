@@ -46,10 +46,9 @@ The `web` subdirectory contains a SvelteKit app that uses Bun for bundling and T
 
 ### Managing the database
 
-The database is a local SQLite database. You can use the sqlx CLI to perform most common database operations.
+The database is a local SQLite database. There is a helper command to reset the database (drop, create, and run migrations). More can be added as needed.
 
-- `sqlx migrate run` - Run migrations (these are also automatically run when the API starts)
-- `sqlx database reset` - Reset the database (drop, create, and run migrations)
+- `bun run db:reset` - Reset the database (drop, create, and run migrations)
 
 
 

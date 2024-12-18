@@ -10,7 +10,7 @@ import { getCurrentUser } from "$lib/currentUser.svelte";
 import { KeycastApi } from "$lib/keycast_api.svelte";
 import ndk from "$lib/ndk.svelte";
 import type {
-    AuthorizationWithPolicy,
+    AuthorizationWithRelations,
     KeyWithRelations,
     StoredKey,
     Team,
@@ -22,7 +22,7 @@ import {
     type NDKUser,
     type NDKUserProfile,
 } from "@nostr-dev-kit/ndk";
-import { CaretRight } from "phosphor-svelte";
+import { CaretRight, Check, Copy as CopyIcon } from "phosphor-svelte";
 import { toast } from "svelte-hot-french-toast";
 
 const { id, pubkey } = $page.params;
@@ -34,9 +34,11 @@ let unsignedAuthEvent: NDKEvent | null = $state(null);
 let encodedAuthEvent: string | null = $state(null);
 let team: Team | null = $state(null);
 let key: StoredKey | null = $state(null);
-let authorizations: AuthorizationWithPolicy[] = $state([]);
+let authorizations: AuthorizationWithRelations[] = $state([]);
 let keyUser: NDKUser | null = ndk.getUser({ pubkey });
 let keyUserProfile: NDKUserProfile | null = $state(null);
+
+let copyConnectionSuccess = $state(false);
 
 $effect(() => {
     if (user?.pubkey && !unsignedAuthEvent) {
@@ -108,7 +110,14 @@ async function removeKey() {
         });
 }
 
-$inspect(authorizations);
+function copyConnectionString(authorization: AuthorizationWithRelations) {
+    navigator.clipboard.writeText(authorization.connection_string);
+    toast.success("Connection string copied to clipboard");
+    copyConnectionSuccess = true;
+    setTimeout(() => {
+        copyConnectionSuccess = false;
+    }, 2000);
+}
 </script>
 
 {#if isLoading}
@@ -158,9 +167,26 @@ $inspect(authorizations);
             {:else}
                 {#each authorizations as authorization}
                     <div class="card">
-                        <span>{authorization.authorization.secret}</span>
-                        <span>{authorization.authorization.max_uses}</span>
-                        <span>{authorization.authorization.expires_at}</span>
+                        <h3 class="font-mono text-sm">{authorization.authorization.secret}</h3>
+                        <button onclick={() => copyConnectionString(authorization)} class="flex flex-row gap-2 items-center justify-center button button-primary button-icon {copyConnectionSuccess ? '!bg-green-600 !text-white !ring-green-600' : ''} transition-all duration-200">
+                            {#if copyConnectionSuccess}
+                                <Check size="20" />
+                                Copied!
+                            {:else}
+                                <CopyIcon size="20" />
+                                Copy connection string
+                            {/if}
+                        </button>
+                        <div class="grid grid-cols-[auto_1fr] gap-y-1 gap-x-2 text-xs text-gray-400">
+                            <span class="whitespace-nowrap">Redemptions:</span>
+                            <span>{authorization.users.length} / {authorization.authorization.max_uses || "∞"}</span>
+                            <span class="whitespace-nowrap">Expiration:</span>
+                            <span>{authorization.authorization.expires_at || "None"}</span>
+                            <span class="whitespace-nowrap">Relays:</span>
+                            <span>{authorization.authorization.relays.join(", ")}</span>
+                            <span class="whitespace-nowrap">Policy:</span>
+                            <span>{authorization.policy.name}</span>
+                        </div>
                     </div>
                 {/each}
             {/if}

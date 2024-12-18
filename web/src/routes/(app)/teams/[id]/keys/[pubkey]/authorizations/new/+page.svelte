@@ -1,10 +1,18 @@
 <script lang="ts">
+import { goto } from "$app/navigation";
 import { page } from "$app/stores";
 import PageSection from "$lib/components/PageSection.svelte";
 import { getCurrentUser } from "$lib/currentUser.svelte";
 import { KeycastApi } from "$lib/keycast_api.svelte";
 import ndk from "$lib/ndk.svelte";
-import type { Policy, StoredKey, Team, TeamWithRelations } from "$lib/types";
+import type {
+    PolicyWithPermissions,
+    StoredKey,
+    Team,
+    TeamWithRelations,
+} from "$lib/types";
+import { readablePermissionConfig } from "$lib/utils/permissions";
+import { toTitleCase } from "$lib/utils/strings";
 import { type NDKEvent, NDKNip07Signer } from "@nostr-dev-kit/ndk";
 import { CaretRight, Plus, X } from "phosphor-svelte";
 import { toast } from "svelte-hot-french-toast";
@@ -18,28 +26,24 @@ let unsignedAuthEvent: NDKEvent | null = $state(null);
 let encodedAuthEvent: string | null = $state(null);
 let policyFormVisible = $state(false);
 
-let maxUses: number = $state(0);
+let maxUses: number | null = $state(0);
 let expiresAt: Date | null = $state(null);
 let relaysString: string = $state(
     "wss://relay.nsecbunker.com, wss://relay.nsec.app",
 );
+
 let relays: string[] = $derived(
     relaysString.split(",").map((relay) => relay.trim()),
 );
 
-let policyName: string = $state("");
-
 let teamWithRelations: TeamWithRelations | null = $state(null);
-let team: Team | null = $derived.by(() =>
-    teamWithRelations ? teamWithRelations.team : null,
-);
-let policies: Policy[] = $derived.by(() =>
-    teamWithRelations ? teamWithRelations.policies : [],
-);
-let key: StoredKey | null | undefined = $derived.by(() =>
-    teamWithRelations
-        ? teamWithRelations.stored_keys.find((key) => key.public_key === pubkey)
-        : undefined,
+let team: Team | null = $state(null);
+let policies: PolicyWithPermissions[] | null = $state(null);
+let key: StoredKey | null | undefined = $state(null);
+let selectedPolicyId: number | null = $state(null);
+
+let readyToSubmit = $derived(
+    maxUses !== null && relaysString && selectedPolicyId,
 );
 
 $effect(() => {
@@ -59,6 +63,11 @@ $effect(() => {
                         .then((teamResponse) => {
                             teamWithRelations =
                                 teamResponse as TeamWithRelations;
+                            team = teamWithRelations.team;
+                            key = teamWithRelations.stored_keys.find(
+                                (key) => key.public_key === pubkey,
+                            );
+                            policies = teamWithRelations.policies;
                         })
                         .finally(() => {
                             isLoading = false;
@@ -69,11 +78,40 @@ $effect(() => {
     }
 });
 
-async function createAuthorization() {}
+async function createAuthorization() {
+    if (!readyToSubmit || !user?.pubkey) {
+        return;
+    }
 
-async function createPolicy() {}
+    const request = {
+        max_uses: maxUses,
+        expires_at: expiresAt,
+        relays: relays,
+        policy_id: selectedPolicyId,
+    };
 
-async function addPermission() {}
+    const authEvent = await api.buildUnsignedAuthEvent(
+        `/teams/${id}/keys/${pubkey}/authorizations`,
+        "POST",
+        user?.pubkey,
+        JSON.stringify(request),
+    );
+    await authEvent?.sign();
+
+    api.post(`/teams/${id}/keys/${pubkey}/authorizations`, request, {
+        headers: {
+            Authorization: `Nostr ${btoa(JSON.stringify(authEvent))}`,
+        },
+    })
+        .then((_authorization) => {
+            toast.success("Authorization created successfully");
+            goto(`/teams/${id}/keys/${pubkey}`);
+        })
+        .catch((error) => {
+            toast.error("Failed to create authorization");
+            toast.error(`Failed to create authorization: ${error.message}`);
+        });
+}
 </script>
 
 <h1 class="page-header flex flex-row gap-1 items-center">
@@ -92,7 +130,7 @@ async function addPermission() {}
         </div>
 
         <div class="form-group">
-            <label for="relays">Relays (comma separated)</label>
+            <label for="relays">Relays (Comma separated)</label>
             <input type="text" bind:value={relaysString} />
         </div>
 
@@ -112,38 +150,36 @@ async function addPermission() {}
 
     <PageSection title="Policies">
         <div class="flex flex-col gap-4">
-            {#if policies.length === 0}
+            {#if !policies || policies.length === 0}
                 <p class="text-gray-500">No policies found</p>
             {:else}
                 <div class="card-grid">
                     {#each policies as policy}
-                        <div class="card">
-                            <h3 class="text-lg font-semibold">{policy.name}</h3>
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <div 
+                            class="card hover-card {selectedPolicyId === policy.policy.id ? '!ring-2 !ring-indigo-500' : ''}"
+                            onclick={() => selectedPolicyId = policy.policy.id}
+                            role="button"
+                            tabindex="0"
+                        >
+                            <h3 class="text-lg font-semibold">{policy.policy.name}</h3>
+                            <ul class="">
+                                {#each policy.permissions as permission}
+                                    <li class="text-sm text-gray-300">{toTitleCase(permission.identifier)}
+                                        <ul class="list-disc list-inside ml-2">
+                                            {#each readablePermissionConfig(permission) as config}
+                                                <li class="text-xs text-gray-400">{config}</li>
+                                            {/each}
+                                        </ul>
+                                    </li>
+                                {/each}
+                            </ul>
                         </div>
                     {/each}
                 </div>
             {/if}
-            {#if !policyFormVisible}
-                <button onclick={() => policyFormVisible = !policyFormVisible} type="button" class="button self-start button-primary !my-0">Add Policy</button>
-            {/if}
-            {#if policyFormVisible}
-                <form onsubmit={() => createPolicy()}>
-                    <div class="form-group">
-                        <label for="policyName">Policy Name</label>
-                        <input type="text" bind:value={policyName} />
-                    </div>
-                    <button onclick={() => addPermission()} type="button" class="button self-start button-primary flex flex-row gap-2 items-center !text-xs !rounded-full">
-                        <Plus size={16} />
-                        <span>Add Permission</span>
-                    </button>
-                    <div class="form-group">
-                        
-                    </div>
-
-                    <button type="submit" class="button button-primary" disabled>Save Policy</button>
-                </form>
-            {/if}
+            <a href={`/teams/${id}/policies/new`} class="button self-start button-primary !my-0">Add Policy</a>
         </div>
     </PageSection>
 
-    <button type="submit" class="button button-primary" disabled>Add Authorization</button>
+    <button onclick={createAuthorization} class="button button-primary" disabled={!readyToSubmit}>Add Authorization</button>

@@ -1,6 +1,8 @@
 {
 	"name": "keycast",
 	"private": true,
+	"version": "0.1.0",
+	"description": "Keycast is a secure key management system for teams on Nostr.",
 	"scripts": {
 		"dev": "concurrently -n 'rust,web' -c 'blue,green' \"bun run dev:api\" \"bun run dev:web\"",
 		"dev:api": "cd api && RUST_LOG=debug cargo watch -x \"run --bin keycast\"",

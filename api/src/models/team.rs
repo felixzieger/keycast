@@ -1,10 +1,16 @@
+use crate::api::http::teams::AddAuthorizationRequest;
 use crate::encryption::{file_key_manager::FileKeyManager, EncryptionError, KeyManager};
-use crate::models::authorization::AuthorizationWithPolicy;
-use crate::models::policy::Policy;
+use crate::models::authorization::{
+    Authorization, AuthorizationError, AuthorizationWithPolicy, AuthorizationWithRelations,
+    UserAuthorization,
+};
+use crate::models::permission::{Permission, PermissionError, PolicyPermission};
+use crate::models::permissions::allowed_kinds::AllowedKindsConfig;
+use crate::models::policy::{Policy, PolicyError, PolicyWithPermissions};
 use crate::models::stored_key::StoredKey;
 use crate::models::user::{TeamUser, TeamUserRole, User, UserError};
 use chrono::DateTime;
-use nostr_sdk::{PublicKey, SecretKey};
+use nostr_sdk::{Keys, PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::SqlitePool;
@@ -26,6 +32,18 @@ pub enum TeamError {
 
     #[error("Encryption error: {0}")]
     Encryption(#[from] EncryptionError),
+
+    #[error("Policy error: {0}")]
+    Policy(#[from] PolicyError),
+
+    #[error("Permission error: {0}")]
+    Permission(#[from] PermissionError),
+
+    #[error("Serde JSON error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error("Authorization error: {0}")]
+    Authorization(#[from] AuthorizationError),
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
@@ -41,14 +59,14 @@ pub struct TeamWithRelations {
     pub team: Team,
     pub team_users: Vec<TeamUser>, // Use team_user here so we get the role
     pub stored_keys: Vec<StoredKey>,
-    pub policies: Vec<Policy>,
+    pub policies: Vec<PolicyWithPermissions>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KeyWithRelations {
     pub team: Team,
     pub stored_key: StoredKey,
-    pub authorizations: Vec<AuthorizationWithPolicy>,
+    pub authorizations: Vec<AuthorizationWithRelations>,
 }
 
 impl Team {
@@ -86,7 +104,7 @@ impl Team {
                     .await?;
 
             // Get policies for this team
-            let policies = Team::get_policies(pool, team.id).await?;
+            let policies = Team::get_policies_with_permissions(pool, team.id).await?;
 
             teams_with_relations.push(TeamWithRelations {
                 team,
@@ -135,7 +153,7 @@ impl Team {
                 .await?;
 
         // Get policies for this team
-        let policies = Team::get_policies(pool, team_id).await?;
+        let policies = Team::get_policies_with_permissions(pool, team_id).await?;
 
         Ok(TeamWithRelations {
             team,
@@ -179,7 +197,7 @@ impl Team {
             TeamError::from(e)
         })?;
 
-        // Finally, create the team_user relationship with admin role
+        // Then, create the team_user relationship with admin role
         let team_user = sqlx::query_as::<_, TeamUser>(
             r#"
             INSERT INTO team_users (team_id, user_public_key, role, created_at, updated_at)
@@ -196,6 +214,47 @@ impl Team {
             TeamError::from(e)
         })?;
 
+        // Finally, create the default policy, default permission (all permissions allowed), and join them
+        let policy = sqlx::query_as::<_, Policy>(
+            r#"
+            INSERT INTO policies (team_id, name, created_at, updated_at)
+            VALUES (?1, 'All Access', datetime('now'), datetime('now'))
+            RETURNING *
+            "#,
+        )
+        .bind(team.id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let allowed_kinds_config = AllowedKindsConfig::default();
+        let permission = sqlx::query_as::<_, Permission>(
+            r#"
+            INSERT INTO permissions (identifier, config, created_at, updated_at)
+            VALUES ('allowed_kinds', ?1, datetime('now'), datetime('now'))
+            RETURNING *
+            "#,
+        )
+        .bind(serde_json::to_value(allowed_kinds_config)?)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        sqlx::query_as::<_, PolicyPermission>(
+            r#"
+            INSERT INTO policy_permissions (policy_id, permission_id, created_at, updated_at)
+            VALUES (?1, ?2, datetime('now'), datetime('now'))
+            RETURNING *
+            "#,
+        )
+        .bind(policy.id)
+        .bind(permission.id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let policy_with_permissions = PolicyWithPermissions {
+            policy,
+            permissions: vec![permission],
+        };
+
         // Commit the transaction
         tx.commit().await.map_err(|e| {
             tracing::error!("Failed to commit transaction: {}", e);
@@ -206,7 +265,7 @@ impl Team {
             team,
             team_users: vec![team_user],
             stored_keys: vec![],
-            policies: vec![],
+            policies: vec![policy_with_permissions],
         })
     }
 
@@ -499,9 +558,12 @@ impl Team {
         .fetch_one(pool)
         .await?;
 
-        let authorizations = sqlx::query_as::<_, AuthorizationWithPolicy>(
+        // First fetch authorizations with policies
+        let base_authorizations = sqlx::query_as::<_, AuthorizationWithPolicy>(
             r#"
-            SELECT a.*, p.* 
+            SELECT 
+                a.*,
+                p.*
             FROM authorizations a
             LEFT JOIN policies p ON p.id = a.policy_id
             WHERE a.stored_key_id = ?1
@@ -511,23 +573,136 @@ impl Team {
         .fetch_all(pool)
         .await?;
 
+        // Then fetch users for each authorization and combine
+        let mut complete_authorizations = Vec::new();
+        for auth in base_authorizations {
+            let users = sqlx::query_as::<_, UserAuthorization>(
+                r#"
+                SELECT user_public_key, created_at, updated_at
+                FROM user_authorizations
+                WHERE authorization_id = ?1
+                "#,
+            )
+            .bind(auth.authorization.id)
+            .fetch_all(pool)
+            .await?;
+
+            complete_authorizations.push(AuthorizationWithRelations {
+                authorization: auth.authorization.clone(),
+                policy: auth.policy,
+                users,
+                connection_string: auth.authorization.connection_string().await?,
+            });
+        }
+
         Ok(KeyWithRelations {
             team,
             stored_key,
-            authorizations,
+            authorizations: complete_authorizations,
         })
     }
 
-    pub async fn get_policies(pool: &SqlitePool, team_id: u32) -> Result<Vec<Policy>, TeamError> {
-        let policies = sqlx::query_as::<_, Policy>(
+    pub async fn get_policies_with_permissions(
+        pool: &SqlitePool,
+        team_id: u32,
+    ) -> Result<Vec<PolicyWithPermissions>, TeamError> {
+        // First fetch policies
+        let policies = sqlx::query_as::<_, Policy>("SELECT * FROM policies WHERE team_id = ?1")
+            .bind(team_id)
+            .fetch_all(pool)
+            .await?;
+
+        // Then fetch permissions for each policy
+        let mut policies_with_permissions = Vec::new();
+        for policy in policies {
+            let permissions = sqlx::query_as::<_, Permission>(
+                "SELECT p.* FROM permissions p 
+                 JOIN policy_permissions pp ON pp.permission_id = p.id 
+                 WHERE pp.policy_id = ?1",
+            )
+            .bind(policy.id)
+            .fetch_all(pool)
+            .await?;
+
+            policies_with_permissions.push(PolicyWithPermissions {
+                policy,
+                permissions,
+            });
+        }
+
+        Ok(policies_with_permissions)
+    }
+
+    pub async fn add_authorization(
+        pool: &SqlitePool,
+        user_pubkey: &PublicKey,
+        team_id: u32,
+        pubkey: &PublicKey,
+        request: AddAuthorizationRequest,
+    ) -> Result<Authorization, TeamError> {
+        // Verify admin status before getting key
+        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+            return Err(TeamError::NotAuthorized);
+        }
+
+        let mut tx = pool.begin().await?;
+
+        let stored_key = sqlx::query_as::<_, StoredKey>(
             r#"
-            SELECT * FROM policies WHERE team_id = ?1
+            SELECT * FROM stored_keys WHERE team_id = ?1 AND public_key = ?2
             "#,
         )
         .bind(team_id)
-        .fetch_all(pool)
+        .bind(pubkey.to_hex())
+        .fetch_one(&mut *tx)
         .await?;
 
-        Ok(policies)
+        // Verify policy exists
+        let policy_exists =
+            sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM policies WHERE id = ?1)")
+                .bind(request.policy_id)
+                .fetch_one(&mut *tx)
+                .await?;
+
+        if !policy_exists {
+            return Err(TeamError::Policy(PolicyError::NotFound));
+        }
+
+        // Create bunker keys for this authorization
+        let bunker_keys = Keys::generate();
+
+        let key_manager =
+            FileKeyManager::new().map_err(|e| EncryptionError::Configuration(e.to_string()))?;
+
+        // Encrypt the secret key
+        let encrypted_bunker_secret = key_manager
+            .encrypt(bunker_keys.secret_key().as_secret_bytes())
+            .await
+            .map_err(|e| TeamError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
+        // create a secret uuid for the authorization connection string
+        let secret = uuid::Uuid::new_v4().to_string();
+
+        // Create authorization
+        let authorization = sqlx::query_as::<_, Authorization>(
+            r#"
+            INSERT INTO authorizations (stored_key_id, policy_id, secret, bunker_secret, relays, max_uses, expires_at, created_at, updated_at)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, datetime('now'), datetime('now'))
+            RETURNING *
+            "#,
+        )
+        .bind(stored_key.id)
+        .bind(request.policy_id)
+        .bind(secret)
+        .bind(encrypted_bunker_secret)
+        .bind(serde_json::to_string(&request.relays)?)
+        .bind(request.max_uses)
+        .bind(request.expires_at)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+
+        Ok(authorization)
     }
 }
