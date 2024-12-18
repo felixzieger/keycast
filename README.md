@@ -6,6 +6,8 @@ Secure remote signing and permissions for teams using Nostr.
 
 Keycast aims to make remote signing and secure key management easy for teams using Nostr. Previous solutions like [nsec.app](https://nsec.app/), [Knox](https://gitlab.com/soapbox-pub/knox), and [Amber](https://github.com/greenart7c3/Amber) are great for individuals, but Keycast is designed for teams. This means that you can collaboratively manage your keys and create policies and permissions to control who can sign and what they can sign.
 
+Keycast is fully open source and will offer both a hosted version (if you don't want to have to manage your own deployment) and options for running your own sovereign instance via Docker, StartOS, or Umbrel.
+
 ## Features
 
 - [x] NIP-98 HTTP Auth based web application and API authentication
@@ -13,7 +15,9 @@ Keycast aims to make remote signing and secure key management easy for teams usi
 - [x] Secure key management (row-level aes-256 encryption, file or aws kms backed key storage)
 - [x] Permissions and policies (flexible, extensible permissions model)
 - [ ] NIP-46 Remote signing for managed keys
-- [ ] 2FA
+- [ ] Docker based deployment
+- [ ] StartOS service
+- [ ] Umbrel app
 
 ## Contributing
 
