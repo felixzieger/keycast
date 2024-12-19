@@ -15,7 +15,7 @@ import type {
     StoredKey,
     Team,
 } from "$lib/types";
-import { formattedDate } from "$lib/utils/dates";
+import { formattedDate, formattedDateTime } from "$lib/utils/dates";
 import {
     type NDKEvent,
     NDKNip07Signer,
@@ -140,16 +140,16 @@ function copyConnectionString(authorization: AuthorizationWithRelations) {
         </div>
         <div class="relative p-6 flex items-center gap-4">
             <Avatar user={ndk.getUser({ pubkey })} extraClasses="w-24 h-24" />
-            <div class="flex flex-col gap-1">
+            <div class="flex flex-col gap-1 truncate">
                 <span class="font-semibold text-lg">
                     <Name user={ndk.getUser({ pubkey })} />
                 </span>
-                <span class="text-xs font-mono text-gray-300 flex flex-row gap-2 items-center justify-between">
-                    {keyUser.npub}
+                <span class="text-xs font-mono text-gray-300 flex flex-row gap-2 items-center justify-between truncate">
+                    <span class="truncate">{keyUser.npub}</span>
                     <Copy value={keyUser.npub} size="18" />
                 </span>
-                <span class="text-xs font-mono text-gray-300 flex flex-row gap-2 items-center justify-between">
-                    {keyUser.pubkey}
+                <span class="text-xs font-mono text-gray-300 flex flex-row gap-2 items-center justify-between truncate">
+                    <span class="truncate">{keyUser.pubkey}</span>
                     <Copy value={keyUser.pubkey} size="18" />
                 </span>
                 <span class="text-xs font-mono text-gray-400 mt-2">
@@ -165,30 +165,32 @@ function copyConnectionString(authorization: AuthorizationWithRelations) {
             {#if authorizations.length === 0}
                 <p class="text-gray-500">No authorizations found</p>
             {:else}
-                {#each authorizations as authorization}
-                    <div class="card">
-                        <h3 class="font-mono text-sm">{authorization.authorization.secret}</h3>
-                        <button onclick={() => copyConnectionString(authorization)} class="flex flex-row gap-2 items-center justify-center button button-primary button-icon {copyConnectionSuccess ? '!bg-green-600 !text-white !ring-green-600' : ''} transition-all duration-200">
-                            {#if copyConnectionSuccess}
-                                <Check size="20" />
-                                Copied!
-                            {:else}
-                                <CopyIcon size="20" />
-                                Copy connection string
-                            {/if}
-                        </button>
-                        <div class="grid grid-cols-[auto_1fr] gap-y-1 gap-x-2 text-xs text-gray-400">
-                            <span class="whitespace-nowrap">Redemptions:</span>
-                            <span>{authorization.users.length} / {authorization.authorization.max_uses || "∞"}</span>
-                            <span class="whitespace-nowrap">Expiration:</span>
-                            <span>{authorization.authorization.expires_at || "None"}</span>
-                            <span class="whitespace-nowrap">Relays:</span>
-                            <span>{authorization.authorization.relays.join(", ")}</span>
-                            <span class="whitespace-nowrap">Policy:</span>
-                            <span>{authorization.policy.name}</span>
+                <div class="card-grid">
+                    {#each authorizations as authorization}
+                        <div class="card">
+                            <h3 class="font-mono text-sm">{authorization.authorization.secret}</h3>
+                            <button onclick={() => copyConnectionString(authorization)} class="flex flex-row gap-2 items-center justify-center button button-primary button-icon {copyConnectionSuccess ? '!bg-green-600 !text-white !ring-green-600' : ''} transition-all duration-200">
+                                {#if copyConnectionSuccess}
+                                    <Check size="20" />
+                                    Copied!
+                                {:else}
+                                    <CopyIcon size="20" />
+                                    Copy connection string
+                                {/if}
+                            </button>
+                            <div class="grid grid-cols-[auto_1fr] gap-y-1 gap-x-2 text-xs text-gray-400">
+                                <span class="whitespace-nowrap">Redemptions:</span>
+                                <span>{authorization.users.length} / {authorization.authorization.max_uses || "∞"}</span>
+                                <span class="whitespace-nowrap">Expiration:</span>
+                                <span>{formattedDateTime(new Date(authorization.authorization.expires_at)) || "None"}</span>
+                                <span class="whitespace-nowrap">Relays:</span>
+                                <span>{authorization.authorization.relays.join(", ")}</span>
+                                <span class="whitespace-nowrap">Policy:</span>
+                                <span>{authorization.policy.name}</span>
+                            </div>
                         </div>
-                    </div>
-                {/each}
+                    {/each}
+                </div>
             {/if}
             <a href={`/teams/${id}/keys/${pubkey}/authorizations/new`} class="button button-primary">Add Authorization</a>
         </div>

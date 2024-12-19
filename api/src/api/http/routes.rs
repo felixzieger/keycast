@@ -27,6 +27,7 @@ pub fn routes(pool: SqlitePool) -> Router {
             "/teams/:id/keys/:pubkey/authorizations",
             post(teams::add_authorization),
         )
+        .route("/teams/:id/policies", post(teams::add_policy))
         .layer(middleware::from_fn(auth_middleware))
         .with_state(pool)
 }

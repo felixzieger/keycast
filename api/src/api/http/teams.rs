@@ -2,10 +2,12 @@ use axum::{extract::Path, extract::State, http::StatusCode, Json};
 use chrono::DateTime;
 use nostr_sdk::{Keys, PublicKey};
 use serde::{Deserialize, Serialize};
+use sqlx::types::chrono::Utc;
 use sqlx::SqlitePool;
 
 use crate::api::extractors::AuthEvent;
 use crate::models::authorization::Authorization;
+use crate::models::policy::PolicyWithPermissions;
 use crate::models::stored_key::StoredKey;
 use crate::models::team::{KeyWithRelations, Team, TeamWithRelations};
 use crate::models::user::{TeamUser, TeamUserRole};
@@ -42,11 +44,25 @@ pub struct AddKeyRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct PermissionParams {
+    pub identifier: String,
+    pub config: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePolicyRequest {
+    pub name: String,
+    pub permissions: Vec<PermissionParams>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AddAuthorizationRequest {
-    pub max_uses: Option<u16>,
-    pub expires_at: Option<DateTime<chrono::Utc>>,
-    pub relays: Option<Vec<String>>,
-    pub policy_id: Option<u32>,
+    pub policy_id: u32,
+    pub relays: Vec<String>,
+    pub max_uses: Option<i32>,
+    #[serde(default)]
+    #[serde(with = "chrono::serde::ts_seconds_option")]
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 impl From<Team> for TeamResponse {
@@ -262,4 +278,19 @@ pub async fn add_authorization(
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(authorization))
+}
+
+pub async fn add_policy(
+    State(pool): State<SqlitePool>,
+    AuthEvent(event): AuthEvent,
+    Path(team_id): Path<u32>,
+    Json(request): Json<CreatePolicyRequest>,
+) -> Result<Json<PolicyWithPermissions>, (StatusCode, String)> {
+    tracing::debug!("Creating policy for team {}", team_id);
+
+    let policy_with_permissions = Team::add_policy(&pool, &event.pubkey, team_id, request)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(policy_with_permissions))
 }

@@ -16,7 +16,7 @@ const activePage = $derived($page.url.pathname);
             <Key size="32" weight="fill" />
             Keycast
         </h1>
-		<p class="text-gray-400">Secure remote signing for your team</p>
+		<p class="hidden md:block text-gray-400">Secure remote signing for your team</p>
 	</a>
 
     <nav class="flex flex-row items-center justify-start gap-4">

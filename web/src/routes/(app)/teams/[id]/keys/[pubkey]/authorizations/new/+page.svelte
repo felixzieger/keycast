@@ -14,7 +14,7 @@ import type {
 import { readablePermissionConfig } from "$lib/utils/permissions";
 import { toTitleCase } from "$lib/utils/strings";
 import { type NDKEvent, NDKNip07Signer } from "@nostr-dev-kit/ndk";
-import { CaretRight, Plus, X } from "phosphor-svelte";
+import { CaretRight, X } from "phosphor-svelte";
 import { toast } from "svelte-hot-french-toast";
 
 const { id, pubkey } = $page.params;
@@ -24,7 +24,6 @@ const user = $derived(getCurrentUser()?.user);
 let isLoading = $state(true);
 let unsignedAuthEvent: NDKEvent | null = $state(null);
 let encodedAuthEvent: string | null = $state(null);
-let policyFormVisible = $state(false);
 
 let maxUses: number | null = $state(0);
 let expiresAt: Date | null = $state(null);
@@ -79,13 +78,26 @@ $effect(() => {
 });
 
 async function createAuthorization() {
-    if (!readyToSubmit || !user?.pubkey) {
+    if (!user?.pubkey) {
+        toast.error("You must be logged in to create an authorization");
+        return;
+    }
+
+    if (!selectedPolicyId) {
+        toast.error("You must select a policy");
+        return;
+    }
+
+    if (!relaysString) {
+        toast.error("You must enter at least one relay");
         return;
     }
 
     const request = {
         max_uses: maxUses,
-        expires_at: expiresAt,
+        expires_at: expiresAt
+            ? Math.floor(new Date(expiresAt).getTime() / 1000)
+            : null,
         relays: relays,
         policy_id: selectedPolicyId,
     };
@@ -96,6 +108,11 @@ async function createAuthorization() {
         user?.pubkey,
         JSON.stringify(request),
     );
+
+    if (!ndk.signer) {
+        ndk.signer = new NDKNip07Signer();
+    }
+
     await authEvent?.sign();
 
     api.post(`/teams/${id}/keys/${pubkey}/authorizations`, request, {

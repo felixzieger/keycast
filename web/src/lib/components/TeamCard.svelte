@@ -3,8 +3,6 @@ import type { TeamWithRelations } from "$lib/types";
 import { formattedDate } from "$lib/utils/dates";
 
 let { team }: { team: TeamWithRelations } = $props();
-
-$inspect(team);
 </script>
 
 <a href={`/teams/${team.team.id}`} class="card hover-card">

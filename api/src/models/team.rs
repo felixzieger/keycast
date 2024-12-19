@@ -1,4 +1,4 @@
-use crate::api::http::teams::AddAuthorizationRequest;
+use crate::api::http::teams::{AddAuthorizationRequest, CreatePolicyRequest};
 use crate::encryption::{file_key_manager::FileKeyManager, EncryptionError, KeyManager};
 use crate::models::authorization::{
     Authorization, AuthorizationError, AuthorizationWithPolicy, AuthorizationWithRelations,
@@ -346,6 +346,42 @@ impl Team {
             .execute(&mut *tx)
             .await?;
 
+        // Delete policy_permissions for all policies in this team
+        sqlx::query(
+            r#"
+            DELETE FROM policy_permissions 
+            WHERE policy_id IN (
+                SELECT id FROM policies WHERE team_id = ?1
+            )
+            "#,
+        )
+        .bind(team_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Delete permissions that were associated with this team's policies
+        sqlx::query(
+            r#"
+            DELETE FROM permissions 
+            WHERE id IN (
+                SELECT permission_id 
+                FROM policy_permissions 
+                WHERE policy_id IN (
+                    SELECT id FROM policies WHERE team_id = ?1
+                )
+            )
+            "#,
+        )
+        .bind(team_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Delete policies for this team
+        sqlx::query("DELETE FROM policies WHERE team_id = ?1")
+            .bind(team_id)
+            .execute(&mut *tx)
+            .await?;
+
         // Delete team_users
         sqlx::query("DELETE FROM team_users WHERE team_id = ?1")
             .bind(team_id)
@@ -631,6 +667,61 @@ impl Team {
         }
 
         Ok(policies_with_permissions)
+    }
+
+    pub async fn add_policy(
+        pool: &SqlitePool,
+        user_pubkey: &PublicKey,
+        team_id: u32,
+        request: CreatePolicyRequest,
+    ) -> Result<PolicyWithPermissions, TeamError> {
+        // Verify admin status before adding policy
+        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+            return Err(TeamError::NotAuthorized);
+        }
+
+        let mut tx = pool.begin().await?;
+
+        // Create the permissions
+        let mut permissions = Vec::new();
+        for permission in request.permissions {
+            let permission = sqlx::query_as::<_, Permission>(
+                "INSERT INTO permissions (identifier, config, created_at, updated_at) VALUES (?1, ?2, datetime('now'), datetime('now')) RETURNING *",
+            )
+            .bind(permission.identifier)
+            .bind(permission.config)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            permissions.push(permission);
+        }
+
+        // Create the policy
+        let policy = sqlx::query_as::<_, Policy>(
+            "INSERT INTO policies (team_id, name, created_at, updated_at) VALUES (?1, ?2, datetime('now'), datetime('now')) RETURNING *",
+        )
+        .bind(team_id)
+        .bind(request.name)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // create the policy permissions
+        for permission in &permissions {
+            sqlx::query(
+                "INSERT INTO policy_permissions (policy_id, permission_id, created_at, updated_at) VALUES (?1, ?2, datetime('now'), datetime('now'))",
+            )
+            .bind(policy.id)
+            .bind(permission.id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+
+        Ok(PolicyWithPermissions {
+            policy,
+            permissions,
+        })
     }
 
     pub async fn add_authorization(

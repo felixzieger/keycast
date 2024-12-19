@@ -60,15 +60,15 @@ a.bordered {
 }
 
 .card-grid {
-    @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4;
+    @apply grid grid-flow-row auto-rows-fr grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
 }
 
 .card {
-    @apply p-4 bg-gray-800 rounded-lg ring-1 ring-gray-700 ring-offset-2 ring-offset-gray-900 flex flex-col gap-4;
+    @apply p-4 bg-gray-800/40 backdrop-blur-xl shadow-xl shadow-black/15 rounded-lg ring-1 ring-gray-500/50 ring-offset-2 ring-offset-gray-900/80 flex flex-col gap-4;
 }
 
 .hover-card {
-    @apply hover:ring-offset-gray-700 hover:ring-gray-600 cursor-pointer;
+    @apply hover:ring-offset-gray-700/80 hover:ring-gray-600/80 cursor-pointer;
 }
 
 .pill {
@@ -84,7 +84,7 @@ a.bordered {
 }
 
 input[type="text"], input[type="password"], select, input[type="number"], input[type="datetime-local"] {
-    @apply bg-transparent text-gray-50 rounded-md px-2 py-1 ring-1 ring-gray-500;
+    @apply bg-transparent text-gray-50 rounded-md px-2 py-1 ring-1 ring-gray-500 text-base;
 }
 
 .input-error {

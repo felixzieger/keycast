@@ -75,8 +75,8 @@ export type AuthorizationWithRelations = {
 export type Permission = {
     identifier: string;
     config: JsonValue;
-    created_at: Date;
-    updated_at: Date;
+    created_at?: Date;
+    updated_at?: Date;
 };
 
 export type PolicyWithPermissions = {

@@ -5,7 +5,7 @@ import type {
 } from "$lib/types";
 import { capitalize } from "./strings";
 
-export function readablePermissionConfig(permission: Permission) {
+export function readablePermissionConfig(permission: Permission): string[] {
     switch (permission.identifier) {
         case "allowed_kinds":
             return Object.entries(permission.config as AllowedKindsConfig).map(
@@ -17,8 +17,10 @@ export function readablePermissionConfig(permission: Permission) {
                 },
             );
         case "content_filter":
-            return `Blocked words: ${(permission.config as ContentFilterConfig).blocked_words?.join(", ")}`;
+            return [
+                `Blocked words: ${(permission.config as ContentFilterConfig).blocked_words?.join(", ")}`,
+            ];
         default:
-            return JSON.stringify(permission.config, null, 2);
+            return ["No configuration required"];
     }
 }
