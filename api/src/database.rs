@@ -4,8 +4,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DatabaseError {
-    #[error("Database already initialized")]
-    AlreadyInitialized,
     #[error("Database not initialized")]
     NotInitialized,
     #[error("FS error: {0}")]

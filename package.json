@@ -5,12 +5,13 @@
 	"description": "Keycast is a secure key management system for teams on Nostr.",
 	"scripts": {
 		"dev": "concurrently -n 'rust,web' -c 'blue,green' \"bun run dev:api\" \"bun run dev:web\"",
-		"dev:api": "cd api && RUST_LOG=debug cargo watch -x \"run --bin keycast\"",
+		"dev:api": "cd api && RUST_LOG=debug cargo watch -x \"run\"",
 		"dev:web": "cd web && bun run dev",
 		"build": "concurrently -n 'rust,web' -c 'blue,green' \"bun run build:api\" \"bun run build:web\"",
-		"build:api": "cd api && cargo build",
-		"build:web": "cd web && bun run build",
-		"db:reset": "cd api && sqlx database reset --source ./database/migrations"
+		"build:api": "cd api && cargo build --release",
+		"build:web": "cd web && bun run build --production",
+		"db:reset": "cd api && sqlx database reset --source ./database/migrations",
+		"key:generate": "cd generate_master_key && cargo run"
 	},
 	"devDependencies": {
 		"concurrently": "^9.1.0"

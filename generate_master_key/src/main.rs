@@ -8,8 +8,11 @@ fn main() {
     let key: [u8; 32] = rand::thread_rng().gen();
     let encoded = BASE64.encode(key);
 
-    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let key_path = project_root.join("master.key");
+    let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("Failed to get parent directory")
+        .to_path_buf();
+    let key_path = project_root.join("api").join("master.key");
 
     let mut file = File::create(&key_path).expect("Failed to create key file");
     file.write_all(encoded.as_bytes())

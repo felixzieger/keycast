@@ -6,8 +6,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum KeyManagerError {
-    #[error("Key manager already initialized")]
-    AlreadyInitialized,
     #[error("Key manager not initialized")]
     NotInitialized,
 }
@@ -18,8 +16,6 @@ pub enum EncryptionError {
     Encryption(String),
     #[error("Decryption error: {0}")]
     Decryption(String),
-    #[error("Key management error: {0}")]
-    KeyManagement(String),
     #[error("Configuration error: {0}")]
     Configuration(String),
 }

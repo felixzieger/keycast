@@ -1320,7 +1320,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "keycast"
+name = "keycast-generate-master-key"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "rand",
+]
+
+[[package]]
+name = "keycast_api"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
@@ -1344,6 +1352,20 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "keycast_signing_daemon"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "keycast_api",
+ "nostr-sdk",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]

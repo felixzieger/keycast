@@ -1,10 +1,11 @@
 use crate::encryption::EncryptionError;
-use crate::get_key_manager;
 use crate::models::policy::Policy;
+use crate::state::get_key_manager;
 use chrono::DateTime;
 use nostr_sdk::{Keys, SecretKey};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use sqlx::SqlitePool;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -70,12 +71,22 @@ pub struct UserAuthorization {
 }
 
 impl Authorization {
+    pub async fn find(pool: &SqlitePool, id: u32) -> Result<Self, AuthorizationError> {
+        let authorization = sqlx::query_as::<_, Authorization>(
+            r#"
+            SELECT * FROM authorizations WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+        Ok(authorization)
+    }
+
     /// Generate a connection string for the authorization
     /// bunker://<remote-signer-pubkey>?relay=<wss://relay-to-connect-on>&relay=<wss://another-relay-to-connect-on>&secret=<optional-secret-value>
     pub async fn connection_string(&self) -> Result<String, AuthorizationError> {
-        let key_manager = get_key_manager()
-            .map_err(|e| EncryptionError::Configuration(e.to_string()))
-            .unwrap();
+        let key_manager = get_key_manager().unwrap();
 
         tracing::debug!("Decrypting bunker secret {:?}", self.bunker_secret);
         let decryped_bunker_secret = key_manager.decrypt(&self.bunker_secret).await?;

@@ -1,0 +1,16 @@
+[package]
+name = "keycast_signing_daemon"
+description = "A Nostr remote signing daemon for the keycast application"
+authors = ["Keycast Authors"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+keycast_api = { path = "../api" }
+dotenv = { workspace = true }
+nostr-sdk = {workspace = true}
+sqlx = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-appender = { workspace = true }
+tracing-subscriber = { workspace = true }

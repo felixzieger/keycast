@@ -6,7 +6,7 @@ use axum::{
 };
 use sqlx::SqlitePool;
 
-use super::teams;
+use crate::api::http::teams;
 
 pub fn routes(pool: SqlitePool) -> Router {
     Router::new()

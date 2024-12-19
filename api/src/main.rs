@@ -3,21 +3,19 @@ mod cli;
 mod database;
 mod encryption;
 mod models;
+mod state;
 
+use crate::database::Database;
+use crate::state::{get_db_pool, KeycastState, KEYCAST_STATE};
 use clap::Parser;
 use cli::Cli;
-use database::{Database, DatabaseError};
 use dotenv::dotenv;
-use encryption::{file_key_manager::FileKeyManager, KeyManager, KeyManagerError};
-use once_cell::sync::OnceCell;
-use sqlx::SqlitePool;
+use encryption::file_key_manager::FileKeyManager;
 use std::env;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::signal;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-
-static DB: OnceCell<Database> = OnceCell::new();
-static KEY_MANAGER: OnceCell<Box<dyn KeyManager>> = OnceCell::new();
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,12 +31,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    // Set up database
     let db_path = PathBuf::from(env::var("DATABASE_URL").map_err(|_| "DATABASE_URL not set")?);
-    initialize_db(db_path).await?;
+    let database = Database::new(db_path).await?;
 
     // Setup basic file based key manager for encryption
     let key_manager = FileKeyManager::new()?;
-    set_key_manager(Box::new(key_manager))?;
+
+    // Create a shared state with the database and key manager
+    let state = Arc::new(KeycastState {
+        db: database.pool,
+        key_manager: Box::new(key_manager),
+    });
+
+    // Set the shared state in the once cell
+    KEYCAST_STATE
+        .set(state)
+        .map_err(|_| "Failed to set KeycastState")?;
 
     // Setup shutdown signal handler
     tokio::spawn(async {
@@ -46,8 +55,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(()) => {
                 println!("\nShutdown signal received, cleaning up...");
                 tracing::info!("Shutdown signal received, cleaning up...");
-                if let Some(db) = DB.get() {
-                    db.pool.close().await;
+                if let Ok(db) = get_db_pool() {
+                    db.close().await;
                 }
                 std::process::exit(0);
             }
@@ -69,33 +78,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     cli.execute().await?;
 
     Ok(())
-}
-
-pub async fn initialize_db(db_path: PathBuf) -> Result<(), DatabaseError> {
-    let database = Database::new(db_path).await?;
-    DB.set(database)
-        .map_err(|_| DatabaseError::AlreadyInitialized)
-}
-
-pub fn get_db() -> Result<&'static Database, DatabaseError> {
-    DB.get().ok_or(DatabaseError::NotInitialized)
-}
-
-pub fn get_db_pool() -> Result<&'static SqlitePool, DatabaseError> {
-    DB.get()
-        .ok_or(DatabaseError::NotInitialized)
-        .map(|db| &db.pool)
-}
-
-pub fn set_key_manager(key_manager: Box<dyn KeyManager>) -> Result<(), KeyManagerError> {
-    KEY_MANAGER
-        .set(key_manager)
-        .map_err(|_| KeyManagerError::AlreadyInitialized)
-}
-
-pub fn get_key_manager() -> Result<&'static dyn KeyManager, KeyManagerError> {
-    KEY_MANAGER
-        .get()
-        .map(|b| b.as_ref())
-        .ok_or(KeyManagerError::NotInitialized)
 }
