@@ -3,6 +3,7 @@ mod cli;
 mod database;
 mod encryption;
 mod models;
+mod permissions;
 mod state;
 
 use crate::database::Database;

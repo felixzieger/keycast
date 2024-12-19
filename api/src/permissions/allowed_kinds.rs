@@ -1,4 +1,4 @@
-use crate::models::permissions::traits::CustomPermission;
+use crate::permissions::traits::CustomPermission;
 use nostr_sdk::{Event, PublicKey};
 use serde::{Deserialize, Serialize};
 

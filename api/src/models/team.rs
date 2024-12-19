@@ -5,10 +5,10 @@ use crate::models::authorization::{
     UserAuthorization,
 };
 use crate::models::permission::{Permission, PermissionError, PolicyPermission};
-use crate::models::permissions::allowed_kinds::AllowedKindsConfig;
 use crate::models::policy::{Policy, PolicyError, PolicyWithPermissions};
 use crate::models::stored_key::StoredKey;
 use crate::models::user::{TeamUser, TeamUserRole, User, UserError};
+use crate::permissions;
 use chrono::DateTime;
 use nostr_sdk::{Keys, PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
@@ -226,7 +226,7 @@ impl Team {
         .fetch_one(&mut *tx)
         .await?;
 
-        let allowed_kinds_config = AllowedKindsConfig::default();
+        let allowed_kinds_config = permissions::allowed_kinds::AllowedKindsConfig::default();
         let permission = sqlx::query_as::<_, Permission>(
             r#"
             INSERT INTO permissions (identifier, config, created_at, updated_at)
@@ -685,6 +685,16 @@ impl Team {
         // Create the permissions
         let mut permissions = Vec::new();
         for permission in request.permissions {
+            // Skip if the permission identifier is not in AVAILABLE_PERMISSIONS
+            if !permissions::traits::AVAILABLE_PERMISSIONS.contains(&permission.identifier.as_str())
+            {
+                tracing::warn!(
+                    "Skipping unknown permission identifier: {}",
+                    permission.identifier
+                );
+                continue;
+            }
+
             let permission = sqlx::query_as::<_, Permission>(
                 "INSERT INTO permissions (identifier, config, created_at, updated_at) VALUES (?1, ?2, datetime('now'), datetime('now')) RETURNING *",
             )
