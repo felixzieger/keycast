@@ -23,8 +23,4 @@ impl KeyManager for AwsKeyManager {
     async fn decrypt<'a>(&'a self, ciphertext: &'a [u8]) -> Result<Vec<u8>, KeyManagerError> {
         todo!("Implement AWS KMS decryption")
     }
-
-    async fn generate_master_key(&self) -> Result<(), KeyManagerError> {
-        todo!("Implement AWS KMS master key generation")
-    }
 }

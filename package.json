@@ -11,9 +11,13 @@
 		"build:api": "cd api && cargo build --release",
 		"build:web": "cd web && bun run build --production",
 		"db:reset": "sqlx database reset --database-url sqlite:./database/keycast.db --source ./database/migrations",
-		"key:generate": "cd api && cargo run generate-master-key"
+		"key:generate": "bun run scripts/generateKey.ts",
+		"key:generate:force": "bun run scripts/generateKey.ts --force"
 	},
 	"devDependencies": {
 		"concurrently": "^9.1.0"
+	},
+	"dependencies": {
+		"@types/bun": "^1.1.14"
 	}
 }

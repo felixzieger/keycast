@@ -7,8 +7,6 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use rand::Rng;
 use std::env;
-use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 
 pub struct FileKeyManager {
@@ -68,24 +66,5 @@ impl KeyManager for FileKeyManager {
         self.cipher
             .decrypt(nonce, encrypted)
             .map_err(|e| KeyManagerError::Decrypt(e.to_string()))
-    }
-
-    async fn generate_master_key(&self) -> Result<(), KeyManagerError> {
-        let key: [u8; 32] = rand::thread_rng().gen();
-        let encoded = BASE64.encode(key);
-
-        let project_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .expect("Failed to get parent directory")
-            .to_path_buf();
-        let key_path = project_root.join("master.key");
-
-        let mut file = File::create(&key_path)
-            .map_err(|e| KeyManagerError::GenerateMasterKey(e.to_string()))?;
-        file.write_all(encoded.as_bytes())
-            .map_err(|e| KeyManagerError::GenerateMasterKey(e.to_string()))?;
-
-        println!("Saved new master key to {}", key_path.display());
-        Ok(())
     }
 }

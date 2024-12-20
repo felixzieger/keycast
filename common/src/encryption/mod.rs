@@ -20,5 +20,4 @@ pub enum KeyManagerError {
 pub trait KeyManager: Send + Sync {
     async fn encrypt<'a>(&'a self, plaintext: &'a [u8]) -> Result<Vec<u8>, KeyManagerError>;
     async fn decrypt<'a>(&'a self, ciphertext: &'a [u8]) -> Result<Vec<u8>, KeyManagerError>;
-    async fn generate_master_key(&self) -> Result<(), KeyManagerError>;
 }
