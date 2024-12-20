@@ -1,11 +1,12 @@
 [workspace]
-members = ["api", "signing_daemon", "generate_master_key"]
+members = ["api", "signing_daemon", "common"]
 resolver = "2"
 
 [workspace.dependencies]
 base64 = "0.22"
 dotenv = "0.15"
 nostr-sdk = {version = "0.37", features = ["nip04", "nip44", "nip49", "nip59"]}
+nostr = {version = "0.37", features = ["nip04", "nip44", "nip46", "nip49", "nip59"]}
 rand = "0.8"
 sqlx = { version = "0.8", features = [ "runtime-tokio", "sqlite", "migrate", "macros", "chrono", "derive", "json" ] }
 thiserror = "2"

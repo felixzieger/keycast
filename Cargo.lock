@@ -560,6 +560,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64",
+ "dotenv",
+ "nostr-sdk",
+ "once_cell",
+ "rand",
+ "sqlx",
+ "thiserror 2.0.7",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1320,14 +1339,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "keycast-generate-master-key"
-version = "0.1.0"
-dependencies = [
- "base64",
- "rand",
-]
-
-[[package]]
 name = "keycast_api"
 version = "0.1.0"
 dependencies = [
@@ -1337,6 +1348,7 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
+ "common",
  "dotenv",
  "nostr-sdk",
  "once_cell",
@@ -1360,6 +1372,8 @@ version = "0.1.0"
 dependencies = [
  "dotenv",
  "keycast_api",
+ "nostr",
+ "nostr-connect",
  "nostr-sdk",
  "sqlx",
  "tokio",
@@ -1547,6 +1561,21 @@ dependencies = [
  "serde_json",
  "unicode-normalization",
  "url",
+]
+
+[[package]]
+name = "nostr-connect"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b1bf2a6324d2c1739be462e83d27caa2c025fd7ca14b401b4bc4b7cac11d382"
+dependencies = [
+ "async-trait",
+ "async-utility",
+ "nostr",
+ "nostr-relay-pool",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

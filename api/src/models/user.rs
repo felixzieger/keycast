@@ -1,8 +1,8 @@
+use crate::state::get_db_pool;
 use chrono::DateTime;
 use nostr_sdk::PublicKey;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -35,11 +35,8 @@ pub enum TeamUserRole {
 }
 
 impl User {
-    pub async fn is_team_admin(
-        pool: &SqlitePool,
-        pubkey: &PublicKey,
-        team_id: u32,
-    ) -> Result<bool, UserError> {
+    pub async fn is_team_admin(pubkey: &PublicKey, team_id: u32) -> Result<bool, UserError> {
+        let pool = get_db_pool().unwrap();
         let query = "SELECT COUNT(*) FROM team_users WHERE user_public_key = ?1 AND team_id = ?2 AND role = 'admin'";
         let count = sqlx::query_scalar::<_, i64>(query)
             .bind(pubkey.to_hex())
@@ -50,11 +47,8 @@ impl User {
     }
 
     #[allow(dead_code)]
-    pub async fn is_team_member(
-        pool: &SqlitePool,
-        pubkey: &PublicKey,
-        team_id: u32,
-    ) -> Result<bool, UserError> {
+    pub async fn is_team_member(pubkey: &PublicKey, team_id: u32) -> Result<bool, UserError> {
+        let pool = get_db_pool().unwrap();
         let query = "SELECT COUNT(*) FROM team_users WHERE user_public_key = ?1 AND team_id = ?2 AND role = 'member'";
         let count = sqlx::query_scalar::<_, i64>(query)
             .bind(pubkey.to_hex())
@@ -65,11 +59,8 @@ impl User {
     }
 
     #[allow(dead_code)]
-    pub async fn is_team_teammate(
-        pool: &SqlitePool,
-        pubkey: &PublicKey,
-        team_id: u32,
-    ) -> Result<bool, UserError> {
+    pub async fn is_team_teammate(pubkey: &PublicKey, team_id: u32) -> Result<bool, UserError> {
+        let pool = get_db_pool().unwrap();
         let query = "SELECT COUNT(*) FROM team_users WHERE user_public_key = ?1 AND team_id = ?2";
         let count = sqlx::query_scalar::<_, i64>(query)
             .bind(pubkey.to_hex())

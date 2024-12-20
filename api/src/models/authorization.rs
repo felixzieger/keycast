@@ -1,7 +1,8 @@
-use crate::encryption::EncryptionError;
 use crate::models::policy::Policy;
-use crate::state::get_key_manager;
+use crate::models::stored_key::StoredKey;
+use crate::state::{get_db_pool, get_key_manager, StateError};
 use chrono::DateTime;
+use common::encryption::KeyManagerError;
 use nostr_sdk::{Keys, SecretKey};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -13,13 +14,33 @@ pub enum AuthorizationError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
     #[error("Encryption error: {0}")]
-    Encryption(#[from] EncryptionError),
+    Encryption(#[from] KeyManagerError),
     #[error("Invalid bunker secret key")]
     InvalidBunkerSecretKey,
+    #[error("State error: {0}")]
+    State(#[from] StateError),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Relays(Vec<String>);
+
+impl IntoIterator for Relays {
+    type Item = String;
+    type IntoIter = std::vec::IntoIter<String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a Relays {
+    type Item = &'a String;
+    type IntoIter = std::slice::Iter<'a, String>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
 
 impl TryFrom<String> for Relays {
     type Error = serde_json::Error;
@@ -81,6 +102,42 @@ impl Authorization {
         .fetch_one(pool)
         .await?;
         Ok(authorization)
+    }
+
+    pub async fn all(pool: &SqlitePool) -> Result<Vec<Self>, AuthorizationError> {
+        let authorizations = sqlx::query_as::<_, Authorization>(
+            r#"
+            SELECT * FROM authorizations
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(authorizations)
+    }
+
+    pub async fn all_ids(pool: &SqlitePool) -> Result<Vec<u32>, AuthorizationError> {
+        let authorizations = sqlx::query_scalar::<_, u32>(
+            r#"
+            SELECT id FROM authorizations
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(authorizations)
+    }
+
+    pub async fn stored_key(&self) -> Result<StoredKey, AuthorizationError> {
+        let pool = get_db_pool()?;
+
+        let stored_key = sqlx::query_as::<_, StoredKey>(
+            r#"
+            SELECT * FROM stored_keys WHERE id = ?
+            "#,
+        )
+        .bind(self.stored_key_id)
+        .fetch_one(pool)
+        .await?;
+        Ok(stored_key)
     }
 
     /// Generate a connection string for the authorization

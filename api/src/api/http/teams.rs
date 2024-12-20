@@ -1,9 +1,8 @@
-use axum::{extract::Path, extract::State, http::StatusCode, Json};
+use axum::{extract::Path, http::StatusCode, Json};
 use chrono::DateTime;
-use nostr_sdk::{Keys, PublicKey};
+use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::types::chrono::Utc;
-use sqlx::SqlitePool;
 
 use crate::api::extractors::AuthEvent;
 use crate::models::authorization::Authorization;
@@ -77,12 +76,11 @@ impl From<Team> for TeamResponse {
 }
 
 pub async fn list_teams(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
 ) -> Result<Json<Vec<TeamWithRelations>>, (StatusCode, String)> {
     tracing::debug!("Listing teams for user: {}", event.pubkey.to_hex());
 
-    let teams_with_relations = Team::for_user(&pool, &event.pubkey)
+    let teams_with_relations = Team::for_user(&event.pubkey)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -90,7 +88,6 @@ pub async fn list_teams(
 }
 
 pub async fn create_team(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Json(request): Json<CreateTeamRequest>,
 ) -> Result<Json<TeamWithRelations>, (StatusCode, String)> {
@@ -100,7 +97,7 @@ pub async fn create_team(
         event.pubkey.to_hex()
     );
 
-    let team_with_relations = Team::create(&pool, &event.pubkey, &request.name)
+    let team_with_relations = Team::create(&event.pubkey, &request.name)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -108,7 +105,6 @@ pub async fn create_team(
 }
 
 pub async fn get_team(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path(team_id): Path<u32>,
 ) -> Result<Json<TeamWithRelations>, (StatusCode, String)> {
@@ -118,7 +114,7 @@ pub async fn get_team(
         event.pubkey.to_hex()
     );
 
-    let team_with_relations = Team::get(&pool, &event.pubkey, team_id)
+    let team_with_relations = Team::get(&event.pubkey, team_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -126,13 +122,12 @@ pub async fn get_team(
 }
 
 pub async fn update_team(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Json(request): Json<UpdateTeamRequest>,
 ) -> Result<Json<Team>, (StatusCode, String)> {
     tracing::debug!("Updating team for user: {}", event.pubkey.to_hex());
 
-    let team = Team::update(&pool, &event.pubkey, request.id, &request.name)
+    let team = Team::update(&event.pubkey, request.id, &request.name)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -140,13 +135,12 @@ pub async fn update_team(
 }
 
 pub async fn delete_team(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path(team_id): Path<u32>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     tracing::debug!("Deleting team for user: {}", event.pubkey.to_hex());
 
-    Team::delete(&pool, &event.pubkey, team_id)
+    Team::delete(&event.pubkey, team_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -154,7 +148,6 @@ pub async fn delete_team(
 }
 
 pub async fn add_user(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path(team_id): Path<u32>,
     Json(request): Json<AddTeammateRequest>,
@@ -168,21 +161,14 @@ pub async fn add_user(
     let user_public_key = PublicKey::from_hex(&request.user_public_key)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let user = Team::add_user(
-        &pool,
-        &event.pubkey,
-        team_id,
-        &user_public_key,
-        request.role,
-    )
-    .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let user = Team::add_user(&event.pubkey, team_id, &user_public_key, request.role)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(user))
 }
 
 pub async fn remove_user(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path((team_id, user_public_key)): Path<(u32, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -191,7 +177,7 @@ pub async fn remove_user(
     let user_public_key = PublicKey::from_hex(&user_public_key)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    Team::remove_user(&pool, &event.pubkey, team_id, &user_public_key)
+    Team::remove_user(&event.pubkey, team_id, &user_public_key)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -199,7 +185,6 @@ pub async fn remove_user(
 }
 
 pub async fn add_key(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path(team_id): Path<u32>,
     Json(request): Json<AddKeyRequest>,
@@ -210,7 +195,6 @@ pub async fn add_key(
         Keys::parse(&request.secret_key).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let key = Team::add_key(
-        &pool,
         &event.pubkey,
         team_id,
         &request.name,
@@ -224,7 +208,6 @@ pub async fn add_key(
 }
 
 pub async fn remove_key(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path((team_id, pubkey)): Path<(u32, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
@@ -233,7 +216,7 @@ pub async fn remove_key(
     let pubkey =
         PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    Team::remove_key(&pool, &event.pubkey, team_id, &pubkey)
+    Team::remove_key(&event.pubkey, team_id, &pubkey)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -241,7 +224,6 @@ pub async fn remove_key(
 }
 
 pub async fn get_key(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path((team_id, pubkey)): Path<(u32, String)>,
 ) -> Result<Json<KeyWithRelations>, (StatusCode, String)> {
@@ -250,7 +232,7 @@ pub async fn get_key(
     let pubkey =
         PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let key_with_relations = Team::get_key_with_relations(&pool, &event.pubkey, team_id, &pubkey)
+    let key_with_relations = Team::get_key_with_relations(&event.pubkey, team_id, &pubkey)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -258,7 +240,6 @@ pub async fn get_key(
 }
 
 pub async fn add_authorization(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path((team_id, pubkey)): Path<(u32, String)>,
     Json(request): Json<AddAuthorizationRequest>,
@@ -272,23 +253,21 @@ pub async fn add_authorization(
     let public_key =
         PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let authorization =
-        Team::add_authorization(&pool, &event.pubkey, team_id, &public_key, request)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let authorization = Team::add_authorization(&event.pubkey, team_id, &public_key, request)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(authorization))
 }
 
 pub async fn add_policy(
-    State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
     Path(team_id): Path<u32>,
     Json(request): Json<CreatePolicyRequest>,
 ) -> Result<Json<PolicyWithPermissions>, (StatusCode, String)> {
     tracing::debug!("Creating policy for team {}", team_id);
 
-    let policy_with_permissions = Team::add_policy(&pool, &event.pubkey, team_id, request)
+    let policy_with_permissions = Team::add_policy(&event.pubkey, team_id, request)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

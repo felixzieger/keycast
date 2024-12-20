@@ -6,6 +6,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+common = { path = "../common" }
+
 base64 = { workspace = true }
 dotenv = { workspace = true }
 nostr-sdk = {workspace = true}

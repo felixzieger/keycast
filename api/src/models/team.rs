@@ -1,5 +1,4 @@
 use crate::api::http::teams::{AddAuthorizationRequest, CreatePolicyRequest};
-use crate::encryption::{file_key_manager::FileKeyManager, EncryptionError, KeyManager};
 use crate::models::authorization::{
     Authorization, AuthorizationError, AuthorizationWithPolicy, AuthorizationWithRelations,
     UserAuthorization,
@@ -9,11 +8,12 @@ use crate::models::policy::{Policy, PolicyError, PolicyWithPermissions};
 use crate::models::stored_key::StoredKey;
 use crate::models::user::{TeamUser, TeamUserRole, User, UserError};
 use crate::permissions;
+use crate::state::{get_db_pool, get_key_manager};
 use chrono::DateTime;
-use nostr_sdk::{Keys, PublicKey, SecretKey};
+use common::encryption::KeyManagerError;
+use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use sqlx::SqlitePool;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -31,7 +31,7 @@ pub enum TeamError {
     UserAlreadyMember,
 
     #[error("Encryption error: {0}")]
-    Encryption(#[from] EncryptionError),
+    Encryption(#[from] KeyManagerError),
 
     #[error("Policy error: {0}")]
     Policy(#[from] PolicyError),
@@ -70,10 +70,8 @@ pub struct KeyWithRelations {
 }
 
 impl Team {
-    pub async fn for_user(
-        pool: &SqlitePool,
-        user_pubkey: &PublicKey,
-    ) -> Result<Vec<TeamWithRelations>, TeamError> {
+    pub async fn for_user(user_pubkey: &PublicKey) -> Result<Vec<TeamWithRelations>, TeamError> {
+        let pool = get_db_pool().unwrap();
         let teams = sqlx::query_as::<_, Team>(
             "SELECT * FROM teams WHERE id IN (SELECT team_id FROM team_users WHERE user_public_key = ?1)",
         )
@@ -104,7 +102,7 @@ impl Team {
                     .await?;
 
             // Get policies for this team
-            let policies = Team::get_policies_with_permissions(pool, team.id).await?;
+            let policies = Team::get_policies_with_permissions(team.id).await?;
 
             teams_with_relations.push(TeamWithRelations {
                 team,
@@ -118,12 +116,12 @@ impl Team {
     }
 
     pub async fn get(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
     ) -> Result<TeamWithRelations, TeamError> {
+        let pool = get_db_pool().unwrap();
         // Verify admin status before updating
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -153,7 +151,7 @@ impl Team {
                 .await?;
 
         // Get policies for this team
-        let policies = Team::get_policies_with_permissions(pool, team_id).await?;
+        let policies = Team::get_policies_with_permissions(team_id).await?;
 
         Ok(TeamWithRelations {
             team,
@@ -164,10 +162,10 @@ impl Team {
     }
 
     pub async fn create(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         name: &str,
     ) -> Result<TeamWithRelations, TeamError> {
+        let pool = get_db_pool().unwrap();
         let mut tx = pool.begin().await?;
 
         // First, try to insert the user if they don't exist
@@ -270,15 +268,15 @@ impl Team {
     }
 
     pub async fn update(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         name: &str,
     ) -> Result<Team, TeamError> {
+        let pool = get_db_pool().unwrap();
         let mut tx = pool.begin().await?;
 
         // Verify admin status before updating
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -297,15 +295,12 @@ impl Team {
         Ok(team)
     }
 
-    pub async fn delete(
-        pool: &SqlitePool,
-        user_pubkey: &PublicKey,
-        team_id: u32,
-    ) -> Result<(), TeamError> {
+    pub async fn delete(user_pubkey: &PublicKey, team_id: u32) -> Result<(), TeamError> {
+        let pool = get_db_pool().unwrap();
         let mut tx = pool.begin().await?;
 
         // Verify admin status before deleting
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -401,16 +396,16 @@ impl Team {
     }
 
     pub async fn add_user(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         new_user_public_key: &PublicKey,
         role: TeamUserRole,
     ) -> Result<TeamUser, TeamError> {
+        let pool = get_db_pool().unwrap();
         let mut tx = pool.begin().await?;
 
         // Verify admin status before adding user
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -460,15 +455,15 @@ impl Team {
     }
 
     pub async fn remove_user(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         user_public_key: &PublicKey,
     ) -> Result<(), TeamError> {
+        let pool = get_db_pool().unwrap();
         let mut tx = pool.begin().await?;
 
         // Verify admin status before removing user
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -485,25 +480,22 @@ impl Team {
     }
 
     pub async fn add_key(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         name: &str,
         public_key: &PublicKey,
         secret_key: &SecretKey,
     ) -> Result<StoredKey, TeamError> {
+        let pool = get_db_pool().unwrap();
         let mut tx = pool.begin().await?;
 
         // Verify admin status before adding key
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
-        // TODO: Encrypt the secret key using the master app key
-        let key_manager =
-            FileKeyManager::new().map_err(|e| EncryptionError::Configuration(e.to_string()))?;
-
         // Encrypt the secret key
+        let key_manager = get_key_manager().unwrap();
         let encrypted_secret = key_manager
             .encrypt(secret_key.to_secret_hex().as_bytes())
             .await
@@ -529,15 +521,15 @@ impl Team {
     }
 
     pub async fn remove_key(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         pubkey: &PublicKey,
     ) -> Result<(), TeamError> {
+        let pool = get_db_pool().unwrap();
         let mut tx = pool.begin().await?;
 
         // Verify admin status before removing key
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -565,13 +557,13 @@ impl Team {
     }
 
     pub async fn get_key_with_relations(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         pubkey: &PublicKey,
     ) -> Result<KeyWithRelations, TeamError> {
+        let pool = get_db_pool().unwrap();
         // Verify admin status before getting key
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -639,9 +631,10 @@ impl Team {
     }
 
     pub async fn get_policies_with_permissions(
-        pool: &SqlitePool,
         team_id: u32,
     ) -> Result<Vec<PolicyWithPermissions>, TeamError> {
+        let pool = get_db_pool().unwrap();
+
         // First fetch policies
         let policies = sqlx::query_as::<_, Policy>("SELECT * FROM policies WHERE team_id = ?1")
             .bind(team_id)
@@ -670,13 +663,13 @@ impl Team {
     }
 
     pub async fn add_policy(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         request: CreatePolicyRequest,
     ) -> Result<PolicyWithPermissions, TeamError> {
+        let pool = get_db_pool().unwrap();
         // Verify admin status before adding policy
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -735,14 +728,14 @@ impl Team {
     }
 
     pub async fn add_authorization(
-        pool: &SqlitePool,
         user_pubkey: &PublicKey,
         team_id: u32,
         pubkey: &PublicKey,
         request: AddAuthorizationRequest,
     ) -> Result<Authorization, TeamError> {
+        let pool = get_db_pool().unwrap();
         // Verify admin status before getting key
-        if !User::is_team_admin(pool, user_pubkey, team_id).await? {
+        if !User::is_team_admin(user_pubkey, team_id).await? {
             return Err(TeamError::NotAuthorized);
         }
 
@@ -772,10 +765,8 @@ impl Team {
         // Create bunker keys for this authorization
         let bunker_keys = Keys::generate();
 
-        let key_manager =
-            FileKeyManager::new().map_err(|e| EncryptionError::Configuration(e.to_string()))?;
-
         // Encrypt the secret key
+        let key_manager = get_key_manager().unwrap();
         let encrypted_bunker_secret = key_manager
             .encrypt(bunker_keys.secret_key().as_secret_bytes())
             .await

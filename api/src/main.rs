@@ -1,17 +1,16 @@
 mod api;
 mod cli;
-mod database;
-mod encryption;
 mod models;
 mod permissions;
+mod signer;
 mod state;
 
-use crate::database::Database;
 use crate::state::{get_db_pool, KeycastState, KEYCAST_STATE};
 use clap::Parser;
 use cli::Cli;
+use common::database::Database;
+use common::encryption::file_key_manager::FileKeyManager;
 use dotenv::dotenv;
-use encryption::file_key_manager::FileKeyManager;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;

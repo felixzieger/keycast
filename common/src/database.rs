@@ -31,7 +31,7 @@ impl Database {
         let pool = SqlitePool::connect(&db_url).await?;
 
         // Run migrations
-        sqlx::migrate!("./database/migrations").run(&pool).await?;
+        sqlx::migrate!("../database/migrations").run(&pool).await?;
 
         Ok(Self { pool })
     }

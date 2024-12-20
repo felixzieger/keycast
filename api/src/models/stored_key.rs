@@ -1,6 +1,6 @@
-use crate::encryption::KeyManagerError;
 use crate::models::user::UserError;
 use chrono::DateTime;
+use common::encryption::KeyManagerError;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use thiserror::Error;
