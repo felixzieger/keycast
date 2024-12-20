@@ -46,7 +46,7 @@ impl SignerManager {
         // Get all authorizations, including expired ones so we can provide user feedback
         let authorization_ids = Authorization::all_ids(pool).await?;
 
-        tracing::info!(
+        tracing::debug!(
             "Starting signer processes for {} authorizations",
             authorization_ids.len()
         );
@@ -66,14 +66,16 @@ impl SignerManager {
             }
         }
 
-        tracing::info!(
+        tracing::debug!(
             "Started signer processes for {} authorizations",
             authorization_ids.len()
         );
-        tracing::info!(
-            "Failed to start signer processes for {} authorizations",
-            failed.len()
-        );
+        if !failed.is_empty() {
+            tracing::warn!(
+                "Failed to start signer processes for {} authorizations",
+                failed.len()
+            );
+        }
 
         // Start any monitoring processes we need - we need to monitor for processes that are exprired and stop them
         Ok(())
@@ -84,15 +86,6 @@ impl SignerManager {
         let auth_ids: Vec<u32> = self.signer_processes.keys().cloned().collect();
         for auth_id in auth_ids {
             self.shutdown_signer_process(&auth_id)?;
-        }
-        Ok(())
-    }
-
-    pub fn list(&self) -> Result<(), SignerManagerError> {
-        tracing::info!("{} signer processes", self.signer_processes.len());
-        println!("{} signer processes", self.signer_processes.len());
-        for (auth_id, _) in self.signer_processes.iter() {
-            tracing::info!("Signer process for authorization {}", auth_id);
         }
         Ok(())
     }
