@@ -46,12 +46,12 @@ pub enum Commands {
 }
 
 #[derive(Debug, Subcommand)]
-enum ServerCommands {
+pub enum ServerCommands {
     Start,
 }
 
 #[derive(Debug, Subcommand)]
-enum SignerCommands {
+pub enum SignerCommands {
     Start { auth_id: Option<String> },
     Stop { auth_id: Option<String> },
     List { auth_id: Option<String> },
@@ -87,10 +87,7 @@ impl Cli {
                     }
                     None => {
                         let mut signer_manager = SignerManager::instance().write().await;
-                        signer_manager
-                            .run()
-                            .await
-                            .map_err(|e| CliError::SignerManager(e))
+                        signer_manager.run().await.map_err(CliError::SignerManager)
                     }
                 },
                 SignerCommands::Stop { auth_id } => match auth_id {
@@ -99,9 +96,7 @@ impl Cli {
                     }
                     None => {
                         let mut signer_manager = SignerManager::instance().write().await;
-                        signer_manager
-                            .shutdown()
-                            .map_err(|e| CliError::SignerManager(e))
+                        signer_manager.shutdown().map_err(CliError::SignerManager)
                     }
                 },
                 SignerCommands::List { auth_id } => match auth_id {
@@ -110,9 +105,8 @@ impl Cli {
                     }
                     None => {
                         let signer_manager = SignerManager::instance().read().await;
-                        signer_manager
-                            .list()
-                            .map_err(|e| CliError::SignerManager(e))
+                        signer_manager.list().map_err(CliError::SignerManager)?;
+                        Ok(())
                     }
                 },
             },
@@ -121,7 +115,7 @@ impl Cli {
                 key_manager
                     .generate_master_key()
                     .await
-                    .map_err(|e| CliError::Key(e))
+                    .map_err(CliError::Key)
             }
         }
     }

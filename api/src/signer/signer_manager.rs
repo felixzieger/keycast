@@ -90,6 +90,7 @@ impl SignerManager {
 
     pub fn list(&self) -> Result<(), SignerManagerError> {
         tracing::info!("{} signer processes", self.signer_processes.len());
+        println!("{} signer processes", self.signer_processes.len());
         for (auth_id, _) in self.signer_processes.iter() {
             tracing::info!("Signer process for authorization {}", auth_id);
         }

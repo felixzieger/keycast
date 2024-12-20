@@ -1,4 +1,5 @@
-use crate::permissions::traits::CustomPermission;
+use crate::traits::CustomPermission;
+use async_trait::async_trait;
 use nostr_sdk::{Event, PublicKey};
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +20,7 @@ pub struct AllowedKinds {
     config: AllowedKindsConfig,
 }
 
+#[async_trait]
 impl CustomPermission for AllowedKinds {
     fn identifier(&self) -> &'static str {
         "allowed_kinds"
@@ -28,21 +30,21 @@ impl CustomPermission for AllowedKinds {
         self.config.clone().into()
     }
 
-    fn can_sign(&self, event: &Event) -> bool {
+    async fn can_sign(&self, event: &Event) -> bool {
         match &self.config.sign {
             None => true,
             Some(kinds) => kinds.contains(&event.kind.into()),
         }
     }
 
-    fn can_encrypt(&self, event: &Event, _recipient_pubkey: &PublicKey) -> bool {
+    async fn can_encrypt(&self, event: &Event, _recipient_pubkey: &PublicKey) -> bool {
         match &self.config.encrypt {
             None => true,
             Some(kinds) => kinds.contains(&event.kind.into()),
         }
     }
 
-    fn can_decrypt(&self, event: &Event, _sender_pubkey: &PublicKey) -> bool {
+    async fn can_decrypt(&self, event: &Event, _sender_pubkey: &PublicKey) -> bool {
         match &self.config.decrypt {
             None => true,
             Some(kinds) => kinds.contains(&event.kind.into()),

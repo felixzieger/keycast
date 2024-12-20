@@ -1,9 +1,8 @@
+use common::encryption::file_key_manager::FileKeyManager;
+use common::encryption::KeyManager;
 use dotenv::dotenv;
-use keycast_api::encryption::file_key_manager::FileKeyManager;
-use keycast_api::encryption::KeyManager;
 use keycast_api::models::authorization::Authorization;
 use nostr_connect::prelude::*;
-use nostr_sdk::prelude::*;
 use sqlx::SqlitePool;
 use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};

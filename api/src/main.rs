@@ -1,7 +1,6 @@
 mod api;
 mod cli;
 mod models;
-mod permissions;
 mod signer;
 mod state;
 
@@ -55,8 +54,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(()) => {
                 println!("\nShutdown signal received, cleaning up...");
                 tracing::info!("Shutdown signal received, cleaning up...");
-                if let Ok(db) = get_db_pool() {
-                    db.close().await;
+                if let Ok(pool) = get_db_pool() {
+                    pool.close().await;
                 }
                 std::process::exit(0);
             }
@@ -68,10 +67,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let cli = match Cli::try_parse() {
-        Ok(cli) => cli,
+        Ok(cli) => {
+            tracing::debug!("CLI {:?}", cli);
+            cli
+        }
         Err(_) => {
             // If parsing fails (no args or invalid args), use the serve command
-            Cli::try_parse_from(["keycast", "serve"]).expect("Failed to parse default command")
+            Cli::try_parse_from(["keycast", "server", "start"])
+                .expect("Failed to parse default command")
         }
     };
 
