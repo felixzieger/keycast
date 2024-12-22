@@ -6,7 +6,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-core = { path = "../core" }
+keycast_core = { path = "../core" }
 chrono = { workspace = true }
 dotenv = { workspace = true }
 nostr-sdk = {workspace = true}

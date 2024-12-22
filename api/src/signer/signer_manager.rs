@@ -1,5 +1,5 @@
 use crate::state::{get_db_pool, StateError};
-use core::types::authorization::{Authorization, AuthorizationError};
+use keycast_core::types::authorization::{Authorization, AuthorizationError};
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 use std::process::{Child, Command};

@@ -1,5 +1,5 @@
 [package]
-name = "core"
+name = "keycast_core"
 authors = ["Keycast Authors"]
 version = "0.1.0"
 edition = "2021"

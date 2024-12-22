@@ -1,7 +1,8 @@
-use core::encryption::file_key_manager::FileKeyManager;
-use core::encryption::KeyManager;
-use core::types::authorization::{Authorization, AuthorizationValidations};
 use dotenv::dotenv;
+use keycast_core::encryption::file_key_manager::FileKeyManager;
+use keycast_core::encryption::KeyManager;
+use keycast_core::traits::AuthorizationValidations;
+use keycast_core::types::authorization::Authorization;
 use nostr::nips::nip46::Request;
 use nostr_connect::prelude::*;
 use sqlx::SqlitePool;
@@ -55,7 +56,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let signer_secret_key = SecretKey::from_slice(&decrypted_secret_bytes)?;
 
     // Decrypt the stored key for this authentication
-    let stored_key = signer_daemon.authorization.stored_key().await?;
+    let stored_key = signer_daemon
+        .authorization
+        .stored_key(&signer_daemon.pool)
+        .await?;
     let decrypted_stored_key_bytes = key_manager.decrypt(&stored_key.secret_key).await?;
     let user_secret_key = SecretKey::from_slice(&decrypted_stored_key_bytes)?;
 
@@ -180,7 +184,7 @@ impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::types::authorization::AuthorizationError;
+    use keycast_core::types::authorization::AuthorizationError;
 
     // Mock Authorization for testing
     struct MockAuthorization {
@@ -199,6 +203,13 @@ mod tests {
                 Some(max) => self.current_redemptions >= max,
                 None => false, // No maximum uses means it can never be fully redeemed
             })
+        }
+        fn validate_permissions(
+            &self,
+            _pool: &SqlitePool,
+            _request: &Request,
+        ) -> Result<bool, AuthorizationError> {
+            Ok(true)
         }
     }
 

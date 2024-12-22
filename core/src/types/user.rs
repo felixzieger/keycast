@@ -1,3 +1,4 @@
+use crate::types::stored_key::StoredKey;
 use crate::types::team::{Team, TeamWithRelations};
 use chrono::DateTime;
 use nostr_sdk::PublicKey;
@@ -9,6 +10,8 @@ use thiserror::Error;
 pub enum UserError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("Couldn't fetch relations")]
+    Relations,
 }
 
 /// A user is a representation of a Nostr user (based solely on a pubkey value)
@@ -46,11 +49,19 @@ pub enum TeamUserRole {
 }
 
 impl User {
+    pub async fn find_by_pubkey(pool: &SqlitePool, pubkey: &PublicKey) -> Result<Self, UserError> {
+        sqlx::query_as::<_, User>("SELECT * FROM users WHERE public_key = ?1")
+            .bind(pubkey.to_hex())
+            .fetch_one(pool)
+            .await
+            .map_err(UserError::Database)
+    }
+
     pub async fn teams(&self, pool: &SqlitePool) -> Result<Vec<TeamWithRelations>, UserError> {
         let teams = sqlx::query_as::<_, Team>(
             "SELECT * FROM teams WHERE id IN (SELECT team_id FROM team_users WHERE user_public_key = ?1)",
         )
-        .bind(self.public_key)
+        .bind(self.public_key.clone())
         .fetch_all(pool)
         .await?;
 
@@ -77,7 +88,9 @@ impl User {
                     .await?;
 
             // Get policies for this team
-            let policies = Team::get_policies_with_permissions(&pool, team.id).await?;
+            let policies = Team::get_policies_with_permissions(pool, team.id)
+                .await
+                .map_err(|_| UserError::Relations)?;
 
             teams_with_relations.push(TeamWithRelations {
                 team,

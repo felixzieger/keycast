@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use core::traits::CustomPermission;
+use keycast_core::traits::CustomPermission;
 use nostr_sdk::{Event, PublicKey};
 use serde::{Deserialize, Serialize};
 
