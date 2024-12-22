@@ -111,7 +111,7 @@ async function removeKey() {
 }
 
 function copyConnectionString(authorization: AuthorizationWithRelations) {
-    navigator.clipboard.writeText(authorization.connection_string);
+    navigator.clipboard.writeText(authorization.bunker_connection_string);
     toast.success("Connection string copied to clipboard");
     copyConnectionSuccess = true;
     setTimeout(() => {

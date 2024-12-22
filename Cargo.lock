@@ -1248,6 +1248,7 @@ dependencies = [
  "chrono",
  "common",
  "dotenv",
+ "nostr",
  "nostr-sdk",
  "once_cell",
  "permissions",
@@ -1269,6 +1270,7 @@ dependencies = [
 name = "keycast_signing_daemon"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "common",
  "dotenv",
  "keycast_api",

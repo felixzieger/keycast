@@ -619,7 +619,7 @@ impl Team {
                 authorization: auth.authorization.clone(),
                 policy: auth.policy,
                 users,
-                connection_string: auth.authorization.connection_string().await?,
+                bunker_connection_string: auth.authorization.bunker_connection_string().await?,
             });
         }
 

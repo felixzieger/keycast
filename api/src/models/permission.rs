@@ -1,4 +1,6 @@
+use crate::models::authorization::AuthorizationError;
 use chrono::DateTime;
+use nostr::nips::nip46::Request;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use thiserror::Error;

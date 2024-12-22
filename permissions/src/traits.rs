@@ -1,9 +1,13 @@
 use async_trait::async_trait;
+use keycast_api::models::permission::Permission;
 use nostr_sdk::{Event, PublicKey};
 use serde_json;
 
 #[async_trait]
-pub trait CustomPermission: Send + Sync {
+pub trait CustomPermission: Send + Sync
+where
+    Self: TryFrom<Permission> + From<Permission>,
+{
     /// Snake case (lower_case_with_underscores) identifier is used to identify the permission.
     fn identifier(&self) -> &'static str;
 

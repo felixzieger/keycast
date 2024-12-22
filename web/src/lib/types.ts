@@ -69,7 +69,7 @@ export type AuthorizationWithRelations = {
     authorization: Authorization;
     policy: Policy;
     users: User[];
-    connection_string: string;
+    bunker_connection_string: string;
 };
 
 export type Permission = {
