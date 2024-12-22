@@ -1,8 +1,26 @@
+use crate::types::authorization::AuthorizationError;
+use crate::types::permission::Permission;
 use async_trait::async_trait;
-use keycast_api::models::permission::Permission;
+use nostr::nips::nip46::Request;
 use nostr_sdk::{Event, PublicKey};
 use serde_json;
+use sqlx::SqlitePool;
 
+/// Provides methods for validating an authorization against it's permissions and other properties in the context of a request
+pub trait AuthorizationValidations {
+    /// Check if the authorization is expired
+    fn expired(&self) -> Result<bool, AuthorizationError>;
+    /// Check if the authorization has no redeemable uses left
+    fn fully_redeemed(&self, pool: &SqlitePool) -> Result<bool, AuthorizationError>;
+    /// Check the authorizations permissions
+    fn validate_permissions(
+        &self,
+        pool: &SqlitePool,
+        request: &Request,
+    ) -> Result<bool, AuthorizationError>;
+}
+
+/// A trait that represents a custom permission
 #[async_trait]
 pub trait CustomPermission: Send + Sync
 where
@@ -23,6 +41,3 @@ where
     /// A function that returns true if allowed to decrypt the event for the sender.
     async fn can_decrypt(&self, event: &Event, sender_pubkey: &PublicKey) -> bool;
 }
-
-pub static AVAILABLE_PERMISSIONS: [&str; 3] =
-    ["allowed_kinds", "content_filter", "encrypt_to_self"];

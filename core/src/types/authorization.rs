@@ -1,11 +1,10 @@
-use crate::models::permission::Permission;
-use crate::models::policy::Policy;
-use crate::models::stored_key::StoredKey;
-use crate::state::{get_db_pool, get_key_manager, StateError};
+use crate::encryption::KeyManagerError;
+use crate::traits::AuthorizationValidations;
+use crate::types::permission::Permission;
+use crate::types::policy::Policy;
+use crate::types::stored_key::StoredKey;
 use chrono::DateTime;
-use common::encryption::KeyManagerError;
 use nostr::nips::nip46::Request;
-use nostr_sdk::{Keys, SecretKey};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use thiserror::Error;
@@ -18,10 +17,9 @@ pub enum AuthorizationError {
     Encryption(#[from] KeyManagerError),
     #[error("Invalid bunker secret key")]
     InvalidBunkerSecretKey,
-    #[error("State error: {0}")]
-    State(#[from] StateError),
 }
 
+/// A list of relays, this is used to store the relays that signers will listen on for an authorization
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Relays(Vec<String>);
 
@@ -50,22 +48,31 @@ impl TryFrom<String> for Relays {
     }
 }
 
+/// An authorization is a set of permissions that belong to a team and can be used to control access to a team's stored keys
 #[derive(Debug, FromRow, Serialize, Deserialize, Clone)]
 pub struct Authorization {
+    /// The id of the authorization
     pub id: u32,
+    /// The id of the stored key the authorization belongs to
     pub stored_key_id: u32,
-    /// The secret connection uuid
+    /// The generated secret connection uuid
     pub secret: String,
-    /// The encrypted bunker secret key
+    /// The public key of the bunker nostr secret key
+    pub bunker_public_key: String,
+    /// The encrypted bunker nostr secret key
     pub bunker_secret: Vec<u8>,
     #[sqlx(try_from = "String")]
+    /// The list of relays the authorization will listen on
     pub relays: Relays,
+    /// The id of the policy the authorization belongs to
     pub policy_id: u32,
     /// The maximum number of uses for this authorization, None means unlimited
     pub max_uses: Option<u16>,
     /// The date and time at which this authorization expires, None means it never expires
     pub expires_at: Option<DateTime<chrono::Utc>>,
+    /// The date and time the authorization was created
     pub created_at: DateTime<chrono::Utc>,
+    /// The date and time the authorization was last updated
     pub updated_at: DateTime<chrono::Utc>,
 }
 
@@ -97,7 +104,7 @@ pub struct UserAuthorization {
 impl Authorization {
     /// Get the number of redemptions used for this authorization
     /// This method is synchronous/blocking so that we can use it in the signing daemon
-    pub fn redemptions(&self, pool: &SqlitePool) -> Result<u16, AuthorizationError> {
+    pub fn redemptions_sync(&self, pool: &SqlitePool) -> Result<u16, AuthorizationError> {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
         let count = rt.block_on(async {
             sqlx::query_scalar::<_, i64>(
@@ -112,7 +119,6 @@ impl Authorization {
         Ok(count as u16)
     }
 
-    #[allow(dead_code)]
     pub async fn find(pool: &SqlitePool, id: u32) -> Result<Self, AuthorizationError> {
         let authorization = sqlx::query_as::<_, Authorization>(
             r#"
@@ -137,10 +143,7 @@ impl Authorization {
     }
 
     /// Get the stored key for this authorization
-    #[allow(dead_code)] // Used in the signing daemon
-    pub async fn stored_key(&self) -> Result<StoredKey, AuthorizationError> {
-        let pool = get_db_pool()?;
-
+    pub async fn stored_key(&self, pool: &SqlitePool) -> Result<StoredKey, AuthorizationError> {
         let stored_key = sqlx::query_as::<_, StoredKey>(
             r#"
             SELECT * FROM stored_keys WHERE id = ?
@@ -154,7 +157,10 @@ impl Authorization {
 
     /// Get the permissions for this authorization
     /// This method is synchronous/blocking so that we can use it in the signing daemon
-    pub fn permissions(&self, pool: &SqlitePool) -> Result<Vec<Permission>, AuthorizationError> {
+    pub fn permissions_sync(
+        &self,
+        pool: &SqlitePool,
+    ) -> Result<Vec<Permission>, AuthorizationError> {
         let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
         let permissions = rt.block_on(async {
             sqlx::query_as::<_, Permission>(
@@ -176,22 +182,6 @@ impl Authorization {
     /// Generate a connection string for the authorization
     /// bunker://<remote-signer-pubkey>?relay=<wss://relay-to-connect-on>&relay=<wss://another-relay-to-connect-on>&secret=<optional-secret-value>
     pub async fn bunker_connection_string(&self) -> Result<String, AuthorizationError> {
-        let key_manager = get_key_manager().unwrap();
-
-        tracing::debug!("Decrypting bunker secret {:?}", self.bunker_secret);
-        let decryped_bunker_secret = key_manager.decrypt(&self.bunker_secret).await?;
-        tracing::debug!(
-            "Decrypted data (len={}): {:?}",
-            decryped_bunker_secret.len(),
-            decryped_bunker_secret
-        );
-
-        let bunker_secret = SecretKey::from_slice(&decryped_bunker_secret).map_err(|e| {
-            tracing::error!("Failed to create SecretKey: {}", e);
-            AuthorizationError::InvalidBunkerSecretKey
-        })?;
-        let keys = Keys::new(bunker_secret);
-
         let relays_arr = self
             .relays
             .0
@@ -201,24 +191,11 @@ impl Authorization {
 
         Ok(format!(
             "bunker://{}?{}&secret={}",
-            keys.public_key.to_hex(),
+            self.bunker_public_key,
             relays_arr.join("&"),
             self.secret,
         ))
     }
-}
-
-pub trait AuthorizationValidations {
-    /// Check if the authorization is expired
-    fn expired(&self) -> Result<bool, AuthorizationError>;
-    /// Check if the authorization has no redeemable uses left
-    fn fully_redeemed(&self, pool: &SqlitePool) -> Result<bool, AuthorizationError>;
-    /// Check the authorizations permissions
-    fn validate_permissions(
-        &self,
-        pool: &SqlitePool,
-        request: &Request,
-    ) -> Result<bool, AuthorizationError>;
 }
 
 impl AuthorizationValidations for Authorization {
@@ -232,7 +209,7 @@ impl AuthorizationValidations for Authorization {
     fn fully_redeemed(&self, pool: &SqlitePool) -> Result<bool, AuthorizationError> {
         match self.max_uses {
             Some(max_uses) => {
-                let redemptions = match self.redemptions(pool) {
+                let redemptions = match self.redemptions_sync(pool) {
                     Ok(redemptions) => redemptions,
                     Err(e) => {
                         return Err(e);
@@ -249,10 +226,10 @@ impl AuthorizationValidations for Authorization {
         pool: &SqlitePool,
         request: &Request,
     ) -> Result<bool, AuthorizationError> {
-        let permissions = self.permissions(pool)?;
+        let permissions = self.permissions_sync(pool)?;
 
         for permission in permissions {
-            permission.validate(request)?;
+            // TODO: Implement permission validation
         }
         Ok(true)
     }

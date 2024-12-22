@@ -5,6 +5,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+core = { path = "../core" }
 async-trait = "0.1"
 nostr-sdk = {workspace = true}
 serde = { workspace = true }

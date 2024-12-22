@@ -1,7 +1,7 @@
-use common::encryption::file_key_manager::FileKeyManager;
-use common::encryption::KeyManager;
+use core::encryption::file_key_manager::FileKeyManager;
+use core::encryption::KeyManager;
+use core::types::authorization::{Authorization, AuthorizationValidations};
 use dotenv::dotenv;
-use keycast_api::models::authorization::{Authorization, AuthorizationValidations};
 use nostr::nips::nip46::Request;
 use nostr_connect::prelude::*;
 use sqlx::SqlitePool;
@@ -180,7 +180,7 @@ impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use keycast_api::models::authorization::AuthorizationError;
+    use core::types::authorization::AuthorizationError;
 
     // Mock Authorization for testing
     struct MockAuthorization {

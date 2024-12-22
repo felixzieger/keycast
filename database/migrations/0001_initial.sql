@@ -130,6 +130,7 @@ CREATE TABLE authorizations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     stored_key_id INTEGER REFERENCES stored_keys(id),
     secret TEXT NOT NULL, -- secret connection uuid
+    bunker_public_key CHAR(64) NOT NULL, -- hex
     bunker_secret BLOB NOT NULL, -- encrypted bunker secret key
     relays TEXT NOT NULL, -- array of relays
     policy_id INTEGER REFERENCES policies(id),

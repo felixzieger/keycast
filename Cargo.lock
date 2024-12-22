@@ -465,25 +465,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "common"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "async-trait",
- "base64",
- "dotenv",
- "nostr-sdk",
- "once_cell",
- "rand",
- "sqlx",
- "thiserror 2.0.7",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -497,6 +478,30 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
+
+[[package]]
+name = "core"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64",
+ "chrono",
+ "dotenv",
+ "nostr",
+ "nostr-sdk",
+ "once_cell",
+ "rand",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.7",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "uuid",
+]
 
 [[package]]
 name = "core-foundation-sys"
@@ -1246,7 +1251,7 @@ dependencies = [
  "axum",
  "base64",
  "chrono",
- "common",
+ "core",
  "dotenv",
  "nostr",
  "nostr-sdk",
@@ -1263,17 +1268,15 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
-name = "keycast_signing_daemon"
+name = "keycast_signer"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "common",
+ "core",
  "dotenv",
- "keycast_api",
  "nostr",
  "nostr-connect",
  "nostr-sdk",
@@ -1695,6 +1698,7 @@ name = "permissions"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "core",
  "nostr-sdk",
  "serde",
  "serde_json",

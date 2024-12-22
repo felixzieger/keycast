@@ -1,5 +1,5 @@
 [workspace]
-members = ["api", "signing_daemon", "common"]
+members = ["api", "core", "signer", "permissions"]
 resolver = "2"
 
 [workspace.dependencies]

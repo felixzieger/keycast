@@ -1,6 +1,6 @@
-use crate::models::user::UserError;
+use crate::encryption::KeyManagerError;
+use crate::types::user::UserError;
 use chrono::DateTime;
-use common::encryption::KeyManagerError;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use thiserror::Error;
@@ -26,18 +26,27 @@ pub enum KeyError {
     KeyManager(#[from] KeyManagerError),
 }
 
+/// A stored key is a key that has been stored in the database for a team
 #[derive(Debug, FromRow, Serialize, Deserialize)]
 pub struct StoredKey {
+    /// The id of the stored key
     pub id: u32,
+    /// The id of the team the key belongs to
     pub team_id: u32,
+    /// The name of the key
     pub name: String,
-    pub public_key: String, // hex pubkey
+    /// The public key of the key, in hex format
+    pub public_key: String,
+    /// The secret key of the key, in bytes, encrypted
     #[sqlx(skip)]
-    pub secret_key: Vec<u8>, // encrypted secret key in bytes
+    pub secret_key: Vec<u8>,
+    /// The date and time the key was created
     pub created_at: DateTime<chrono::Utc>,
+    /// The date and time the key was last updated
     pub updated_at: DateTime<chrono::Utc>,
 }
 
+/// A public representation of a stored key, without the secret key
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PublicStoredKey {
     pub id: u32,
