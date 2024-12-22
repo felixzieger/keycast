@@ -1,4 +1,3 @@
-pub mod keys;
 pub mod routes;
 pub mod teams;
 

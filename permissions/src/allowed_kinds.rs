@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use keycast_core::traits::CustomPermission;
+use keycast_core::types::permission::Permission;
 use nostr_sdk::{Event, PublicKey};
 use serde::{Deserialize, Serialize};
 
@@ -16,8 +17,22 @@ impl From<AllowedKindsConfig> for serde_json::Value {
     }
 }
 
+impl From<serde_json::Value> for AllowedKindsConfig {
+    fn from(value: serde_json::Value) -> Self {
+        serde_json::from_value(value).unwrap()
+    }
+}
+
 pub struct AllowedKinds {
     config: AllowedKindsConfig,
+}
+
+impl From<Permission> for AllowedKinds {
+    fn from(permission: Permission) -> Self {
+        Self {
+            config: AllowedKindsConfig::from(permission.config),
+        }
+    }
 }
 
 #[async_trait]

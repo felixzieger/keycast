@@ -1,14 +1,11 @@
 mod api;
-mod models;
-mod signer;
 mod state;
 
-use crate::signer::signer_manager::SignerManager;
 use crate::state::{get_db_pool, KeycastState, KEYCAST_STATE};
 use axum::{http::HeaderValue, Router};
-use common::database::Database;
-use common::encryption::file_key_manager::FileKeyManager;
 use dotenv::dotenv;
+use keycast_core::database::Database;
+use keycast_core::encryption::file_key_manager::FileKeyManager;
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -41,14 +38,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("\n\n================================================");
                 println!("🫡 Shutdown signal received, cleaning up...");
                 println!("✔︎ API shutdown complete");
-                // Stop the signer manager
-                {
-                    let mut signer_manager = SignerManager::instance().write().await;
-                    signer_manager
-                        .shutdown()
-                        .expect("Failed to shutdown bunker signing procceses");
-                }
-                println!("✔︎ Bunker signing procceses shutdown complete");
                 if let Ok(pool) = get_db_pool() {
                     pool.close().await;
                 }
@@ -83,13 +72,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     KEYCAST_STATE
         .set(state)
         .map_err(|_| "Failed to set KeycastState")?;
-
-    // Start up the signing manager
-    {
-        let mut signer_manager = SignerManager::instance().write().await;
-        signer_manager.run().await?;
-    }
-    println!("✔︎ Bunker signing procceses spawned");
 
     // Start up the API
     let cors = CorsLayer::new()

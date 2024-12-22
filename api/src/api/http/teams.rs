@@ -1,12 +1,20 @@
-use axum::{extract::Path, http::StatusCode, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    Json,
+};
 use chrono::DateTime;
 use nostr_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::types::chrono::Utc;
+use sqlx::SqlitePool;
 
 use crate::api::extractors::AuthEvent;
-use keycast_core::types::authorization::Authorization;
-use keycast_core::types::policy::PolicyWithPermissions;
+use keycast_core::types::authorization::{
+    Authorization, AuthorizationWithRelations, UserAuthorization,
+};
+use keycast_core::types::permission::{Permission, PolicyPermission};
+use keycast_core::types::policy::{Policy, PolicyWithPermissions};
 use keycast_core::types::stored_key::StoredKey;
 use keycast_core::types::team::{KeyWithRelations, Team, TeamWithRelations};
 use keycast_core::types::user::{TeamUser, TeamUserRole, User};
@@ -83,7 +91,10 @@ pub async fn list_teams(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    let teams_with_relations = user.teams(&pool).await?;
+    let teams_with_relations = user.teams(&pool).await.map_err(|e| {
+        tracing::error!("Failed to get teams: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     Ok(Json(teams_with_relations))
 }
@@ -93,7 +104,10 @@ pub async fn create_team(
     AuthEvent(event): AuthEvent,
     Json(request): Json<CreateTeamRequest>,
 ) -> Result<Json<TeamWithRelations>, (StatusCode, String)> {
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let user_pubkey = event.pubkey;
 
@@ -106,7 +120,11 @@ pub async fn create_team(
     )
     .bind(user_pubkey.to_hex())
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert user: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Then, insert the team
     let team = sqlx::query_as::<_, Team>(
@@ -116,12 +134,12 @@ pub async fn create_team(
             RETURNING *
             "#,
     )
-    .bind(name)
+    .bind(request.name)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("Failed to insert team: {}", e);
-        TeamError::from(e)
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
     // Then, create the team_user relationship with admin role
@@ -138,7 +156,7 @@ pub async fn create_team(
     .await
     .map_err(|e| {
         tracing::error!("Failed to insert team_user: {}", e);
-        TeamError::from(e)
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
     // Finally, create the default policy, default permission (all permissions allowed), and join them
@@ -151,7 +169,11 @@ pub async fn create_team(
     )
     .bind(team.id)
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert policy: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let allowed_kinds_config = permissions::allowed_kinds::AllowedKindsConfig::default();
     let permission = sqlx::query_as::<_, Permission>(
@@ -163,7 +185,11 @@ pub async fn create_team(
     )
     .bind(serde_json::to_value(allowed_kinds_config)?)
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert permission: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     sqlx::query_as::<_, PolicyPermission>(
         r#"
@@ -175,7 +201,11 @@ pub async fn create_team(
     .bind(policy.id)
     .bind(permission.id)
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert policy_permission: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let policy_with_permissions = PolicyWithPermissions {
         policy,
@@ -185,7 +215,7 @@ pub async fn create_team(
     // Commit the transaction
     tx.commit().await.map_err(|e| {
         tracing::error!("Failed to commit transaction: {}", e);
-        TeamError::from(e)
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
     })?;
 
     Ok(Json(TeamWithRelations {
@@ -205,7 +235,10 @@ pub async fn get_team(
 
     let team_with_relations = Team::find_with_relations(&pool, team_id)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Failed to find team with relations: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
     Ok(Json(team_with_relations))
 }
@@ -228,9 +261,16 @@ pub async fn update_team(
     .bind(request.name)
     .bind(request.id)
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to update team: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     Ok(Json(team))
 }
@@ -260,7 +300,11 @@ pub async fn delete_team(
     )
     .bind(team_id)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to delete user_authorizations: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Delete authorizations for all stored keys in this team
     sqlx::query(
@@ -273,13 +317,21 @@ pub async fn delete_team(
     )
     .bind(team_id)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to delete authorizations: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Delete stored keys for this team
     sqlx::query("DELETE FROM stored_keys WHERE team_id = ?1")
         .bind(team_id)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete stored keys: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
     // Delete policy_permissions for all policies in this team
     sqlx::query(
@@ -292,7 +344,11 @@ pub async fn delete_team(
     )
     .bind(team_id)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to delete policy_permissions: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Delete permissions that were associated with this team's policies
     sqlx::query(
@@ -309,28 +365,47 @@ pub async fn delete_team(
     )
     .bind(team_id)
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to delete policy_permissions: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Delete policies for this team
     sqlx::query("DELETE FROM policies WHERE team_id = ?1")
         .bind(team_id)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete policies: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
     // Delete team_users
     sqlx::query("DELETE FROM team_users WHERE team_id = ?1")
         .bind(team_id)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete team_users: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
     // Finally delete the team
     sqlx::query("DELETE FROM teams WHERE id = ?1")
         .bind(team_id)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete team: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
     // Commit the transaction
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -343,7 +418,10 @@ pub async fn add_user(
 ) -> Result<Json<TeamUser>, (StatusCode, String)> {
     verify_admin(&pool, &event.pubkey, team_id).await?;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let new_user_public_key = PublicKey::from_hex(&request.user_public_key)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -357,7 +435,11 @@ pub async fn add_user(
     .bind(team_id)
     .bind(new_user_public_key.to_hex())
     .fetch_optional(&mut *tx)
-    .await?
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch team user: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?
     .is_some()
     {
         return Err(TeamError::UserAlreadyMember);
@@ -372,7 +454,11 @@ pub async fn add_user(
     )
     .bind(new_user_public_key.to_hex())
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert user: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Then, insert the team_user relationship
     let team_user = sqlx::query_as::<_, TeamUser>(
@@ -386,9 +472,17 @@ pub async fn add_user(
     .bind(new_user_public_key.to_hex())
     .bind(role)
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert team user: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
     Ok(Json(team_user))
 }
 
@@ -399,7 +493,10 @@ pub async fn remove_user(
 ) -> Result<StatusCode, (StatusCode, String)> {
     verify_admin(&pool, &event.pubkey, team_id).await?;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let removed_user_public_key = PublicKey::from_hex(&user_public_key)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -409,9 +506,16 @@ pub async fn remove_user(
         .bind(team_id)
         .bind(removed_user_public_key.to_hex())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete team user: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -424,7 +528,10 @@ pub async fn add_key(
 ) -> Result<Json<StoredKey>, (StatusCode, String)> {
     verify_admin(&pool, &event.pubkey, team_id).await?;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let keys =
         Keys::parse(&request.secret_key).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -449,9 +556,16 @@ pub async fn add_key(
     .bind(keys.public_key().to_hex())
     .bind(encrypted_secret)
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert key: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     Ok(Json(key))
 }
@@ -463,7 +577,10 @@ pub async fn remove_key(
 ) -> Result<StatusCode, (StatusCode, String)> {
     verify_admin(&pool, &event.pubkey, team_id).await?;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let removed_stored_key_public_key =
         PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -472,22 +589,37 @@ pub async fn remove_key(
     sqlx::query("DELETE FROM user_authorizations WHERE authorization_id IN (SELECT id FROM authorizations WHERE stored_key_id = ?1)")
     .bind(removed_stored_key_public_key.to_hex())
     .execute(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to delete user_authorizations: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Delete all authorizations for this key
     sqlx::query("DELETE FROM authorizations WHERE stored_key_id = ?1")
         .bind(removed_stored_key_public_key.to_hex())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete authorizations: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
     // Delete the key
     sqlx::query("DELETE FROM stored_keys WHERE team_id = ?1 AND public_key = ?2")
         .bind(team_id)
         .bind(removed_stored_key_public_key.to_hex())
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to delete stored key: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -499,7 +631,10 @@ pub async fn get_key(
 ) -> Result<Json<KeyWithRelations>, (StatusCode, String)> {
     verify_admin(&pool, &event.pubkey, team_id).await?;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let stored_key_public_key =
         PublicKey::from_hex(&pubkey).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -510,8 +645,12 @@ pub async fn get_key(
             "#,
     )
     .bind(team_id)
-    .fetch_one(pool)
-    .await?;
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch team: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     let stored_key = sqlx::query_as::<_, StoredKey>(
         r#"
@@ -520,8 +659,12 @@ pub async fn get_key(
     )
     .bind(team_id)
     .bind(stored_key_public_key.to_hex())
-    .fetch_one(pool)
-    .await?;
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch stored key: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // First fetch authorizations with policies
     let base_authorizations = sqlx::query_as::<_, AuthorizationWithPolicy>(
@@ -535,8 +678,12 @@ pub async fn get_key(
             "#,
     )
     .bind(stored_key.id)
-    .fetch_all(pool)
-    .await?;
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch authorizations: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Then fetch users for each authorization and combine
     let mut complete_authorizations = Vec::new();
@@ -549,8 +696,12 @@ pub async fn get_key(
                 "#,
         )
         .bind(auth.authorization.id)
-        .fetch_all(pool)
-        .await?;
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to fetch users: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
         complete_authorizations.push(AuthorizationWithRelations {
             authorization: auth.authorization.clone(),
@@ -560,11 +711,11 @@ pub async fn get_key(
         });
     }
 
-    Ok(KeyWithRelations {
+    Ok(Json(KeyWithRelations {
         team,
         stored_key,
         authorizations: complete_authorizations,
-    })
+    }))
 }
 
 pub async fn add_authorization(
@@ -588,14 +739,22 @@ pub async fn add_authorization(
     .bind(team_id)
     .bind(stored_key_public_key.to_hex())
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch stored key: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
 
     // Verify policy exists
     let policy_exists =
         sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM policies WHERE id = ?1)")
             .bind(request.policy_id)
             .fetch_one(&mut *tx)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch policy: {}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            })?;
 
     if !policy_exists {
         return Err(TeamError::Policy(PolicyError::NotFound));
@@ -631,9 +790,15 @@ pub async fn add_authorization(
         .bind(request.max_uses)
         .bind(request.expires_at)
         .fetch_one(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to insert authorization: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        })?;
 
-    tx.commit().await?;
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(authorization))
 }
@@ -645,7 +810,10 @@ pub async fn add_policy(
     Json(request): Json<CreatePolicyRequest>,
 ) -> Result<Json<PolicyWithPermissions>, (StatusCode, String)> {
     verify_admin(&pool, &event.pubkey, team_id).await?;
-    let mut tx = pool.begin().await?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // Create the permissions
     let mut permissions = Vec::new();
@@ -665,7 +833,8 @@ pub async fn add_policy(
         .bind(permission.identifier)
         .bind(permission.config)
         .fetch_one(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
         permissions.push(permission);
     }
@@ -677,7 +846,8 @@ pub async fn add_policy(
     .bind(team_id)
     .bind(request.name)
     .fetch_one(&mut *tx)
-    .await?;
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // create the policy permissions
     for permission in &permissions {
@@ -687,10 +857,13 @@ pub async fn add_policy(
         .bind(policy.id)
         .bind(permission.id)
         .execute(&mut *tx)
-        .await?;
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     }
 
-    tx.commit().await?;
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(PolicyWithPermissions {
         policy,
@@ -698,16 +871,17 @@ pub async fn add_policy(
     }))
 }
 
-pub async fn verify_admin(
-    pool: &SqlitePool,
-    pubkey: &PublicKey,
+pub async fn verify_admin<'a>(
+    pool: &'a SqlitePool,
+    pubkey: &'a PublicKey,
     team_id: u32,
-) -> Result<(), (StatusCode, &str)> {
-    if !User::is_team_admin(pool, pubkey, team_id).await? {
-        return Err((
+) -> Result<(), (StatusCode, &'a str)> {
+    match User::is_team_admin(pool, pubkey, team_id).await {
+        Ok(true) => Ok(()),
+        Ok(false) => Err((
             StatusCode::FORBIDDEN,
             "You are not authorized to access this team",
-        ));
+        )),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
     }
-    Ok(())
 }

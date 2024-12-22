@@ -1,4 +1,4 @@
-use common::encryption::KeyManager;
+use keycast_core::encryption::KeyManager;
 use once_cell::sync::OnceCell;
 use sqlx::SqlitePool;
 use std::sync::Arc;
