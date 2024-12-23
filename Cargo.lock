@@ -1380,12 +1380,15 @@ name = "keycast_signer"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "config",
  "dotenv",
  "keycast_core",
  "nostr",
  "nostr-connect",
  "nostr-sdk",
+ "once_cell",
  "sqlx",
+ "thiserror 2.0.7",
  "tokio",
  "tracing",
  "tracing-appender",

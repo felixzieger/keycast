@@ -5,14 +5,27 @@ authors = ["Keycast Authors"]
 version = "0.1.0"
 edition = "2021"
 
+# The main signer binary runs the signer manager which spawns
+# and manages the signing daemons for each authorization
+[[bin]]
+name = "keycast_signer"
+path = "src/main.rs"
+
+[[bin]]
+name = "signer_daemon"
+path = "src/signer_daemon.rs"
+
 [dependencies]
 keycast_core = { path = "../core" }
 chrono = { workspace = true }
+config = { workspace = true }
 dotenv = { workspace = true }
 nostr-sdk = {workspace = true}
 nostr = {workspace = true}
 nostr-connect = {version = "0.37"}
+once_cell = { workspace = true }
 sqlx = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }

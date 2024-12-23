@@ -403,19 +403,30 @@ pub async fn remove_key(
     let removed_stored_key_public_key =
         PublicKey::from_hex(&pubkey).map_err(|e| ApiError::bad_request(e.to_string()))?;
 
-    // Delete all user_authorizations for this key
-    sqlx::query("DELETE FROM user_authorizations WHERE authorization_id IN (SELECT id FROM authorizations WHERE stored_key_id = ?1)")
+    // First get the stored key ID
+    let stored_key = sqlx::query_as::<_, StoredKey>(
+        "SELECT * FROM stored_keys WHERE team_id = ?1 AND public_key = ?2",
+    )
+    .bind(team_id)
     .bind(removed_stored_key_public_key.to_hex())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Delete all user_authorizations for this key using the correct stored_key_id
+    sqlx::query(
+        "DELETE FROM user_authorizations WHERE authorization_id IN (SELECT id FROM authorizations WHERE stored_key_id = ?1)"
+    )
+    .bind(stored_key.id)  // Use stored_key.id instead of public_key
     .execute(&mut *tx)
     .await?;
 
-    // Delete all authorizations for this key
+    // Delete all authorizations for this key using the correct stored_key_id
     sqlx::query("DELETE FROM authorizations WHERE stored_key_id = ?1")
-        .bind(removed_stored_key_public_key.to_hex())
+        .bind(stored_key.id) // Use stored_key.id instead of public_key
         .execute(&mut *tx)
         .await?;
 
-    // Delete the key
+    // Finally delete the key itself
     sqlx::query("DELETE FROM stored_keys WHERE team_id = ?1 AND public_key = ?2")
         .bind(team_id)
         .bind(removed_stored_key_public_key.to_hex())

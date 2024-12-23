@@ -1,2 +1,1 @@
-database_url = "sqlite:../database/keycast.db"
-database_migrations = "../database/migrations"
+

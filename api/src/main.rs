@@ -3,7 +3,6 @@ mod state;
 
 use crate::state::{get_db_pool, KeycastState, KEYCAST_STATE};
 use axum::{http::HeaderValue, Router};
-use config::{Config, File};
 use keycast_core::database::Database;
 use keycast_core::encryption::file_key_manager::FileKeyManager;
 use std::env;
@@ -17,20 +16,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n\n================================================");
-    println!("🔑 Keycast Starting...");
-
-    // Load config
-    let root_dir = env!("CARGO_MANIFEST_DIR");
-    let config_path = PathBuf::from(root_dir).join("config.toml");
-    let config = Config::builder()
-        .add_source(File::from(config_path))
-        .build()
-        .unwrap();
-
-    let database_url = config.get::<String>("database_url").unwrap();
-    let database_migrations = config.get::<String>("database_migrations").unwrap();
-
-    println!("✔︎ Config loaded");
+    println!("🔑 Keycast API Starting...");
 
     // Initialize tracing with debug level
     tracing_subscriber::registry()
@@ -61,9 +47,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Set up database
-    let db_path = PathBuf::from(database_url);
-    let migrations_path = PathBuf::from(database_migrations);
-    let database = Database::new(db_path, migrations_path).await?;
+    let root_dir = env!("CARGO_MANIFEST_DIR");
+    let database_url = PathBuf::from(root_dir)
+        .parent()
+        .unwrap()
+        .join("database/keycast.db");
+    let database_migrations = PathBuf::from(root_dir)
+        .parent()
+        .unwrap()
+        .join("database/migrations");
+    let database = Database::new(database_url.clone(), database_migrations.clone()).await?;
     println!("✔︎ Database initialized");
 
     // Setup basic file based key manager for encryption
@@ -94,7 +87,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     println!("✔︎ API listening on {}", listener.local_addr().unwrap());
-    println!("🤙 Keycast ready! LFG!");
+    println!("🤙 Keycast API ready! LFG!");
     println!("================================================");
 
     axum::serve(listener, app).await.unwrap();

@@ -40,7 +40,7 @@ The `web` subdirectory contains a SvelteKit app that uses Bun for bundling and T
 
 1. Clone the repository and install workspace dependencies with `bun install`
 2. Install the web app dependencies with `cd web && bun install`
-3. `cd` into the `api` subdirectory, copy the `.env.example` file to `.env` with `cp .env.example .env`. You shouldn't need to change anything.
+3. Config is done with config.rs files. You shouldn't have to change anything to get started but you can modify the config.toml file to change the database url and migrations path.
 4. Then, from the root directory, generate a master encryption key with `bun run key:generate`. This master key is used to encrypt and decrypt Nostr private keys in the database. These are only decrypted when used and remain encrypted at rest. In the future we hope to support other key storage methods, like AWS KMS.
 
 ### Running the dev server (API + Web)
