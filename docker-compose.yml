@@ -1,0 +1,22 @@
+services:
+  app:
+    build: .
+    ports:
+      - "5173:5173"  # SvelteKit
+      - "3000:3000"  # API
+    volumes:
+      - ./database:/app/database  # For SQLite database persistence
+  caddy:
+      image: caddy:2
+      ports:
+        - "80:80"
+        - "443:443"
+      volumes:
+        - ./Caddyfile:/etc/caddy/Caddyfile
+        - caddy_data:/data
+        - caddy_config:/config
+      depends_on:
+        - app
+volumes:
+  caddy_data:
+  caddy_config:
