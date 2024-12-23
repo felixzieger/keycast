@@ -5,6 +5,7 @@ resolver = "2"
 [workspace.dependencies]
 base64 = "0.22"
 chrono = {version = "0.4", features = ["serde"]}
+config = "0.14.0"
 dotenv = "0.15"
 nostr-sdk = {version = "0.37", features = ["nip04", "nip44", "nip49", "nip59"]}
 nostr = {version = "0.37", features = ["nip04", "nip44", "nip46", "nip49", "nip59"]}

@@ -19,7 +19,7 @@ pub struct Database {
 }
 
 impl Database {
-    pub async fn new(db_path: PathBuf) -> Result<Self, DatabaseError> {
+    pub async fn new(db_path: PathBuf, migrations_path: PathBuf) -> Result<Self, DatabaseError> {
         let db_url = format!("{}", db_path.display());
 
         // Create database if it doesn't exist
@@ -31,7 +31,10 @@ impl Database {
         let pool = SqlitePool::connect(&db_url).await?;
 
         // Run migrations
-        sqlx::migrate!("../database/migrations").run(&pool).await?;
+        sqlx::migrate::Migrator::new(migrations_path)
+            .await?
+            .run(&pool)
+            .await?;
 
         Ok(Self { pool })
     }

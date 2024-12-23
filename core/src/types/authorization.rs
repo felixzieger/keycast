@@ -224,11 +224,11 @@ impl AuthorizationValidations for Authorization {
     fn validate_permissions(
         &self,
         pool: &SqlitePool,
-        request: &Request,
+        _request: &Request,
     ) -> Result<bool, AuthorizationError> {
         let permissions = self.permissions_sync(pool)?;
 
-        for permission in permissions {
+        for _permission in permissions {
             // TODO: Implement permission validation
         }
         Ok(true)

@@ -10,7 +10,7 @@ keycast_core = { path = "../core" }
 permissions = { path = "../permissions" }
 
 base64 = { workspace = true }
-dotenv = { workspace = true }
+config = { workspace = true }
 nostr-sdk = {workspace = true}
 nostr = {workspace = true}
 rand = { workspace = true }
