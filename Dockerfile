@@ -10,6 +10,11 @@ RUN cargo build --release
 
 FROM oven/bun:1 as web-builder
 WORKDIR /app
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY ./web .
 RUN bun install
 RUN bun run build
