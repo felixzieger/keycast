@@ -42,6 +42,9 @@ $effect(() => {
                         .then((teamsResponse) => {
                             teams = teamsResponse as TeamWithRelations[];
                         })
+                        .catch((error) => {
+                            console.error(error);
+                        })
                         .finally(() => {
                             isLoading = false;
                         });

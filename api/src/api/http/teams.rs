@@ -25,7 +25,13 @@ pub async fn list_teams(
     State(pool): State<SqlitePool>,
     AuthEvent(event): AuthEvent,
 ) -> ApiResult<Json<Vec<TeamWithRelations>>> {
-    let user = User::find_by_pubkey(&pool, &event.pubkey).await?;
+    let user = match User::find_by_pubkey(&pool, &event.pubkey).await {
+        Ok(user) => user,
+        Err(e) => {
+            return Err(ApiError::not_found("User not found"));
+        }
+    };
+
     let teams_with_relations = user.teams(&pool).await?;
 
     Ok(Json(teams_with_relations))

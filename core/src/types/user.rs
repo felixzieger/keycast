@@ -12,6 +12,8 @@ pub enum UserError {
     Database(#[from] sqlx::Error),
     #[error("Couldn't fetch relations")]
     Relations,
+    #[error("User not found")]
+    NotFound,
 }
 
 /// A user is a representation of a Nostr user (based solely on a pubkey value)
@@ -50,11 +52,18 @@ pub enum TeamUserRole {
 
 impl User {
     pub async fn find_by_pubkey(pool: &SqlitePool, pubkey: &PublicKey) -> Result<Self, UserError> {
-        sqlx::query_as::<_, User>("SELECT * FROM users WHERE public_key = ?1")
+        match sqlx::query_as::<_, User>("SELECT * FROM users WHERE public_key = ?1")
             .bind(pubkey.to_hex())
             .fetch_one(pool)
             .await
-            .map_err(UserError::Database)
+        {
+            Ok(user) => Ok(user),
+            Err(sqlx::Error::RowNotFound) => Err(UserError::NotFound),
+            Err(e) => {
+                println!("Error fetching user: {:?}", e);
+                Err(UserError::Database(e))
+            }
+        }
     }
 
     pub async fn teams(&self, pool: &SqlitePool) -> Result<Vec<TeamWithRelations>, UserError> {
