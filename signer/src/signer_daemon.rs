@@ -52,6 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .authorization
         .stored_key(&signer_daemon.pool)
         .await?;
+
     let decrypted_stored_key_bytes = key_manager.decrypt(&stored_key.secret_key).await?;
     let user_secret_key = SecretKey::from_slice(&decrypted_stored_key_bytes)?;
 

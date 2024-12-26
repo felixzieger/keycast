@@ -18,7 +18,7 @@ use keycast_core::types::authorization::{
 };
 use keycast_core::types::permission::{Permission, PolicyPermission};
 use keycast_core::types::policy::{Policy, PolicyWithPermissions};
-use keycast_core::types::stored_key::StoredKey;
+use keycast_core::types::stored_key::{PublicStoredKey, StoredKey};
 use keycast_core::types::team::{KeyWithRelations, Team, TeamWithRelations};
 use keycast_core::types::user::{TeamUser, User};
 
@@ -344,6 +344,21 @@ pub async fn remove_user(
     let removed_user_public_key =
         PublicKey::from_hex(&user_public_key).map_err(|e| ApiError::bad_request(e.to_string()))?;
 
+    // Check if the user is deleting themselves
+    if event.pubkey == removed_user_public_key {
+        // At least one admin has to remain in the team
+        let remaining_admin_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM team_users WHERE team_id = ?1 AND user_public_key != ?2 AND role = 'admin'")
+                .bind(team_id)
+                .bind(removed_user_public_key.to_hex())
+                .fetch_one(&mut *tx)
+                .await?;
+
+        if remaining_admin_count.0 == 0 {
+            return Err(ApiError::forbidden(
+                "Cannot delete the last admin from the team.",
+            ));
+        }
+    }
     // Delete the team_user relationship
     sqlx::query("DELETE FROM team_users WHERE team_id = ?1 AND user_public_key = ?2")
         .bind(team_id)
@@ -361,7 +376,7 @@ pub async fn add_key(
     AuthEvent(event): AuthEvent,
     Path(team_id): Path<u32>,
     Json(request): Json<AddKeyRequest>,
-) -> ApiResult<Json<StoredKey>> {
+) -> ApiResult<Json<PublicStoredKey>> {
     verify_admin(&pool, &event.pubkey, team_id).await?;
 
     let mut tx = pool.begin().await?;
@@ -394,7 +409,7 @@ pub async fn add_key(
 
     tx.commit().await?;
 
-    Ok(Json(key))
+    Ok(Json(key.into()))
 }
 
 pub async fn remove_key(
@@ -518,7 +533,7 @@ pub async fn get_key(
 
     Ok(Json(KeyWithRelations {
         team,
-        stored_key,
+        stored_key: stored_key.into(),
         authorizations: complete_authorizations,
     }))
 }

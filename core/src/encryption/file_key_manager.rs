@@ -81,7 +81,8 @@ mod tests {
 
         // Generate new Nostr keys
         let keys = Keys::generate();
-        let secret_key_bytes = keys.secret_key().secret_bytes().to_vec();
+        let secret_key_bytes = keys.secret_key().secret_bytes();
+        let secret_key_vec = secret_key_bytes.to_vec();
 
         // Encrypt the secret key bytes
         let encrypted = key_manager.encrypt(&secret_key_bytes).await?;
@@ -90,7 +91,7 @@ mod tests {
         let decrypted = key_manager.decrypt(&encrypted).await?;
 
         // Verify the decrypted bytes match the original
-        assert_eq!(secret_key_bytes, decrypted);
+        assert_eq!(secret_key_vec, decrypted);
 
         Ok(())
     }
@@ -99,7 +100,7 @@ mod tests {
     async fn test_encryption_produces_different_ciphertexts() -> Result<(), KeyManagerError> {
         let key_manager = FileKeyManager::new()?;
         let keys = Keys::generate();
-        let secret_key_bytes = keys.secret_key().secret_bytes().to_vec();
+        let secret_key_bytes = keys.secret_key().secret_bytes();
 
         // Encrypt the same data twice
         let encrypted1 = key_manager.encrypt(&secret_key_bytes).await?;
