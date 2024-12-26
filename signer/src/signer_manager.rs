@@ -110,15 +110,15 @@ impl SignerManager {
             std::env::current_exe()?
                 .parent()
                 .ok_or(SignerManagerError::Spawn)?
-                .join("signing_daemon"),
+                .join("signer_daemon"),
             // Current working directory
-            std::env::current_dir()?.join("signing_daemon"),
+            std::env::current_dir()?.join("signer_daemon"),
             // Try with .exe extension on Windows
             #[cfg(windows)]
             std::env::current_exe()?
                 .parent()
                 .ok_or(SignerManagerError::Spawn)?
-                .join("signing_daemon.exe"),
+                .join("signer_daemon.exe"),
         ];
 
         let binary_path = possible_paths
