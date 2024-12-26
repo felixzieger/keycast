@@ -16,7 +16,6 @@ keycast_core = { path = "../core" }
 nostr = {workspace = true}
 nostr-sdk = {workspace = true}
 once_cell = { workspace = true }
-permissions = { path = "../permissions" }
 rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
