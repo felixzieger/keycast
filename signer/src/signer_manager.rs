@@ -49,7 +49,7 @@ impl SignerManager {
         let authorization_ids = Authorization::all_ids(&self.pool).await?;
 
         tracing::debug!(
-            target: "keycast_signer::signing_manager",
+            target: "keycast_signer::signer_manager",
             "Starting signer processes for {} authorizations",
             authorization_ids.len()
         );
@@ -61,7 +61,7 @@ impl SignerManager {
                 Err(e) => {
                     failed.push(*auth_id);
                     tracing::error!(
-                        target: "keycast_signer::signing_manager",
+                        target: "keycast_signer::signer_manager",
                         "Failed to start signer process for authorization {}: {}",
                         auth_id,
                         e
@@ -76,7 +76,7 @@ impl SignerManager {
         );
         if !failed.is_empty() {
             tracing::warn!(
-                target: "keycast_signer::signing_manager",
+                target: "keycast_signer::signer_manager",
                 "Failed to start signer processes for {} authorizations",
                 failed.len()
             );
@@ -89,7 +89,7 @@ impl SignerManager {
         loop {
             interval_timer.tick().await;
             if let Err(e) = self.healthcheck().await {
-                tracing::error!(target: "keycast_signer::signing_manager", "Error checking health: {}", e);
+                tracing::error!(target: "keycast_signer::signer_manager", "Error checking health: {}", e);
             }
         }
     }
@@ -127,7 +127,7 @@ impl SignerManager {
             .ok_or(SignerManagerError::SigningDaemonBinary)?;
 
         tracing::info!(
-            target: "keycast_signer::signing_manager",
+            target: "keycast_signer::signer_manager",
             "Starting signer process for authorization {} using binary at {:?}",
             auth_id,
             binary_path
@@ -162,7 +162,7 @@ impl SignerManager {
     }
 
     pub async fn healthcheck(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        tracing::info!(target: "keycast_signer::signing_manager", "Running healthcheck...");
+        tracing::info!(target: "keycast_signer::signer_manager", "Running healthcheck...");
         // First sync with the database to get the current set of authorizations
         self.sync_with_database().await?;
 
@@ -182,7 +182,7 @@ impl SignerManager {
                     Ok(Some(_)) => Some(*key),
                     Ok(None) => None,
                     Err(e) => {
-                        tracing::error!(target: "keycast_signer::signing_manager", "Error checking process for key {}: {}", key, e);
+                        tracing::error!(target: "keycast_signer::signer_manager", "Error checking process for key {}: {}", key, e);
                         Some(*key)
                     }
                 }
@@ -197,7 +197,7 @@ impl SignerManager {
 
         // Restart the dead processes
         for key in keys_to_restart {
-            tracing::info!(target: "keycast_signer::signing_manager", "Restarting signer process for key: {}", key);
+            tracing::info!(target: "keycast_signer::signer_manager", "Restarting signer process for key: {}", key);
             self.spawn_signer_process(key).await?;
         }
 
@@ -227,13 +227,13 @@ impl SignerManager {
 
         // Start new processes
         for auth_id in new_auths {
-            tracing::info!(target: "keycast_signer::signing_manager", "Starting signer process for new authorization: {}", auth_id);
+            tracing::info!(target: "keycast_signer::signer_manager", "Starting signer process for new authorization: {}", auth_id);
             self.spawn_signer_process(auth_id).await?;
         }
 
         // Shutdown removed processes
         for auth_id in to_remove {
-            tracing::info!(target: "keycast_signer::signing_manager", "Shutting down signer process for removed authorization: {}", auth_id);
+            tracing::info!(target: "keycast_signer::signer_manager", "Shutting down signer process for removed authorization: {}", auth_id);
             self.shutdown_signer_process(&auth_id).await?;
         }
 

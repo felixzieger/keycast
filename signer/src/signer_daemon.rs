@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let database_url = env::var("DATABASE_URL").map_err(|_| "DATABASE_URL not set")?;
     let pool = SqlitePool::connect(&database_url).await?;
 
-    tracing::info!(target: "signing_daemon", "Starting signing daemon for authorization {:?}", auth_id);
+    tracing::info!(target: "keycast_signer::signer_daemon", "Starting signing daemon for authorization {:?}", auth_id);
 
     let authorization = Authorization::find(&pool, auth_id).await?;
 
@@ -67,8 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         None,
     )?;
 
-    tracing::info!(target: "keycast_signer::signing_daemon", "Signing daemon for authorization {:?} started", auth_id);
-    tracing::info!(target: "keycast_signer::signing_daemon", "Bunker signing URI: {:?}", signer.bunker_uri());
+    tracing::info!(target: "keycast_signer::signer_daemon", "Signing daemon for authorization {:?} started", auth_id);
+    tracing::info!(target: "keycast_signer::signer_daemon", "Bunker signing URI: {:?}", signer.bunker_uri());
 
     // Start the signer with custom actions
     signer.serve(SignerActions::new(signer_daemon)).await?;
@@ -88,17 +88,17 @@ impl<T: AuthorizationValidations> SignerActions<T> {
 
 impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T> {
     fn approve(&self, request: &Request) -> bool {
-        tracing::debug!(target: "keycast_signer::signing_daemon", "Evaluating request: {:?}", request);
+        tracing::debug!(target: "keycast_signer::signer_daemon", "Evaluating request: {:?}", request);
 
         // Check to see if the authorization is expired
         match self.signer_daemon.authorization.expired() {
             Ok(true) => {
-                tracing::error!(target: "keycast_signer::signing_daemon", "Authorization expired");
+                tracing::error!(target: "keycast_signer::signer_daemon", "Authorization expired");
                 return false;
             }
             Ok(false) => (),
             Err(e) => {
-                tracing::error!(target: "keycast_signer::signing_daemon", "Error checking if authorization is expired: {:?}", e);
+                tracing::error!(target: "keycast_signer::signer_daemon", "Error checking if authorization is expired: {:?}", e);
                 return false;
             }
         }
@@ -110,12 +110,12 @@ impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T>
             .fully_redeemed(&self.signer_daemon.pool)
         {
             Ok(true) => {
-                tracing::error!(target: "keycast_signer::signing_daemon", "Authorization fully redeemed");
+                tracing::error!(target: "keycast_signer::signer_daemon", "Authorization fully redeemed");
                 return false;
             }
             Ok(false) => (),
             Err(e) => {
-                tracing::error!(target: "keycast_signer::signing_daemon", "Error checking if authorization is fully redeemed: {:?}", e);
+                tracing::error!(target: "keycast_signer::signer_daemon", "Error checking if authorization is fully redeemed: {:?}", e);
                 return false;
             }
         }
@@ -128,11 +128,11 @@ impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T>
         {
             Ok(true) => (),
             Ok(false) => {
-                tracing::error!(target: "keycast_signer::signing_daemon", "Authorization does not have the required permissions");
+                tracing::error!(target: "keycast_signer::signer_daemon", "Authorization does not have the required permissions");
                 return false;
             }
             Err(e) => {
-                tracing::error!(target: "keycast_signer::signing_daemon", "Error validating permissions: {:?}", e);
+                tracing::error!(target: "keycast_signer::signer_daemon", "Error validating permissions: {:?}", e);
                 return false;
             }
         }
@@ -141,49 +141,49 @@ impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T>
 
         // match request {
         //     Request::Connect { public_key, secret } => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "Connect request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "Connect request received");
         //         return true;
         //     }
         //     Request::GetPublicKey => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "Get public key request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "Get public key request received");
         //         return true;
         //     }
         //     Request::SignEvent(event) => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "Sign event request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "Sign event request received");
         //         return true;
         //     }
         //     Request::GetRelays => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "Get relays request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "Get relays request received");
         //         return true;
         //     }
         //     Request::Nip04Encrypt { public_key, text } => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "NIP04 encrypt request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP04 encrypt request received");
         //         return true;
         //     }
         //     Request::Nip04Decrypt {
         //         public_key,
         //         ciphertext,
         //     } => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "NIP04 decrypt request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP04 decrypt request received");
         //         return true;
         //     }
         //     Request::Nip44Encrypt { public_key, text } => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "NIP44 encrypt request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP44 encrypt request received");
         //         return true;
         //     }
         //     Request::Nip44Decrypt {
         //         public_key,
         //         ciphertext,
         //     } => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "NIP44 decrypt request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP44 decrypt request received");
         //         return true;
         //     }
         //     Request::Ping => {
-        //         tracing::info!(target: "keycast_signer::signing_daemon", "Ping request received");
+        //         tracing::info!(target: "keycast_signer::signer_daemon", "Ping request received");
         //         return true;
         //     }
         //     _ => {
-        //         tracing::error!(target: "keycast_signer::signing_daemon", "Unsupported request: {:?}", request);
+        //         tracing::error!(target: "keycast_signer::signer_daemon", "Unsupported request: {:?}", request);
         //         return false;
         //     }
         // }

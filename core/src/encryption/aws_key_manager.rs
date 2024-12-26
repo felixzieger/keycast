@@ -16,11 +16,11 @@ impl AwsKeyManager {
 
 #[async_trait]
 impl KeyManager for AwsKeyManager {
-    async fn encrypt<'a>(&'a self, plaintext: &'a [u8]) -> Result<Vec<u8>, KeyManagerError> {
+    async fn encrypt(&self, plaintext_bytes: &[u8]) -> Result<Vec<u8>, KeyManagerError> {
         todo!("Implement AWS KMS encryption")
     }
 
-    async fn decrypt<'a>(&'a self, ciphertext: &'a [u8]) -> Result<Vec<u8>, KeyManagerError> {
+    async fn decrypt(&self, ciphertext_bytes: &[u8]) -> Result<Vec<u8>, KeyManagerError> {
         todo!("Implement AWS KMS decryption")
     }
 }
