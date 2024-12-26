@@ -1,5 +1,6 @@
 use crate::encryption::KeyManagerError;
 use crate::traits::AuthorizationValidations;
+use crate::traits::CustomPermission;
 use crate::types::permission::Permission;
 use crate::types::policy::Policy;
 use crate::types::stored_key::StoredKey;
@@ -224,13 +225,28 @@ impl AuthorizationValidations for Authorization {
     fn validate_permissions(
         &self,
         pool: &SqlitePool,
-        _request: &Request,
+        request: &Request,
     ) -> Result<bool, AuthorizationError> {
         let permissions = self.permissions_sync(pool)?;
 
-        for _permission in permissions {
-            // TODO: Implement permission validation
+        // Convert database permissions to custom permissions
+        let custom_permissions: Result<Vec<Box<dyn CustomPermission>>, _> = permissions
+            .iter()
+            .map(|p| p.to_custom_permission())
+            .collect();
+
+        let custom_permissions =
+            custom_permissions.expect("Failed to convert permissions to custom permissions");
+
+        for permission in custom_permissions {
+            tracing::debug!(
+                "Validate permission {} for request {:?}",
+                permission.identifier(),
+                request
+            );
+            // Todo: check type of request and then check against all permissions.
         }
+
         Ok(true)
     }
 }

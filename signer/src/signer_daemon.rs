@@ -120,9 +120,24 @@ impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T>
             }
         }
 
-        true
-
         // Loop through each permission attached to the authentication
+        match self
+            .signer_daemon
+            .authorization
+            .validate_permissions(&self.signer_daemon.pool, request)
+        {
+            Ok(true) => (),
+            Ok(false) => {
+                tracing::error!(target: "keycast_signer::signing_daemon", "Authorization does not have the required permissions");
+                return false;
+            }
+            Err(e) => {
+                tracing::error!(target: "keycast_signer::signing_daemon", "Error validating permissions: {:?}", e);
+                return false;
+            }
+        }
+
+        true
 
         // match request {
         //     Request::Connect { public_key, secret } => {

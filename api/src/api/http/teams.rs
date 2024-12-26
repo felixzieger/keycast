@@ -12,6 +12,7 @@ use sqlx::SqlitePool;
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::extractors::AuthEvent;
 use crate::state::get_key_manager;
+use keycast_core::custom_permissions::{allowed_kinds::AllowedKindsConfig, AVAILABLE_PERMISSIONS};
 use keycast_core::types::authorization::{
     Authorization, AuthorizationWithPolicy, AuthorizationWithRelations, UserAuthorization,
 };
@@ -27,7 +28,7 @@ pub async fn list_teams(
 ) -> ApiResult<Json<Vec<TeamWithRelations>>> {
     let user = match User::find_by_pubkey(&pool, &event.pubkey).await {
         Ok(user) => user,
-        Err(e) => {
+        Err(_) => {
             return Err(ApiError::not_found("User not found"));
         }
     };
@@ -92,9 +93,8 @@ pub async fn create_team(
     .fetch_one(&mut *tx)
     .await?;
 
-    let allowed_kinds_config =
-        serde_json::to_value(permissions::allowed_kinds::AllowedKindsConfig::default())
-            .map_err(|_| ApiError::bad_request("Couldn't serialize allowed kinds config"))?;
+    let allowed_kinds_config = serde_json::to_value(AllowedKindsConfig::default())
+        .map_err(|_| ApiError::bad_request("Couldn't serialize allowed kinds config"))?;
 
     let permission = sqlx::query_as::<_, Permission>(
         r#"
@@ -610,7 +610,7 @@ pub async fn add_policy(
     let mut permissions = Vec::new();
     for permission in request.permissions {
         // Skip if the permission identifier is not in AVAILABLE_PERMISSIONS
-        if !permissions::AVAILABLE_PERMISSIONS.contains(&permission.identifier.as_str()) {
+        if !AVAILABLE_PERMISSIONS.contains(&permission.identifier.as_str()) {
             tracing::warn!(
                 "Skipping unknown permission identifier: {}",
                 permission.identifier

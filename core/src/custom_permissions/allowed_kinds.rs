@@ -1,6 +1,8 @@
+use crate::{
+    traits::CustomPermission,
+    types::permission::{Permission, PermissionError},
+};
 use async_trait::async_trait;
-use keycast_core::traits::CustomPermission;
-use keycast_core::types::permission::Permission;
 use nostr_sdk::{Event, PublicKey};
 use serde::{Deserialize, Serialize};
 
@@ -11,55 +13,43 @@ pub struct AllowedKindsConfig {
     pub decrypt: Option<Vec<u16>>,
 }
 
-impl From<AllowedKindsConfig> for serde_json::Value {
-    fn from(config: AllowedKindsConfig) -> Self {
-        serde_json::to_value(config).unwrap()
-    }
-}
-
-impl From<serde_json::Value> for AllowedKindsConfig {
-    fn from(value: serde_json::Value) -> Self {
-        serde_json::from_value(value).unwrap()
-    }
-}
-
 pub struct AllowedKinds {
     config: AllowedKindsConfig,
 }
 
-impl From<Permission> for AllowedKinds {
-    fn from(permission: Permission) -> Self {
-        Self {
-            config: AllowedKindsConfig::from(permission.config),
-        }
-    }
-}
-
 #[async_trait]
 impl CustomPermission for AllowedKinds {
+    fn from_permission(
+        permission: &Permission,
+    ) -> Result<Box<dyn CustomPermission>, PermissionError> {
+        let parsed_config: AllowedKindsConfig =
+            serde_json::from_value(permission.config.clone())
+                .map_err(|e| PermissionError::InvalidConfig(e.to_string()))?;
+
+        Ok(Box::new(Self {
+            config: parsed_config,
+        }))
+    }
+
     fn identifier(&self) -> &'static str {
         "allowed_kinds"
     }
 
-    fn config(&self) -> serde_json::Value {
-        self.config.clone().into()
-    }
-
-    async fn can_sign(&self, event: &Event) -> bool {
+    fn can_sign(&self, event: &Event) -> bool {
         match &self.config.sign {
             None => true,
             Some(kinds) => kinds.contains(&event.kind.into()),
         }
     }
 
-    async fn can_encrypt(&self, event: &Event, _recipient_pubkey: &PublicKey) -> bool {
+    fn can_encrypt(&self, event: &Event, _recipient_pubkey: &PublicKey) -> bool {
         match &self.config.encrypt {
             None => true,
             Some(kinds) => kinds.contains(&event.kind.into()),
         }
     }
 
-    async fn can_decrypt(&self, event: &Event, _sender_pubkey: &PublicKey) -> bool {
+    fn can_decrypt(&self, event: &Event, _sender_pubkey: &PublicKey) -> bool {
         match &self.config.decrypt {
             None => true,
             Some(kinds) => kinds.contains(&event.kind.into()),

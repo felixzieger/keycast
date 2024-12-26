@@ -1,5 +1,5 @@
 [workspace]
-members = ["api", "core", "signer", "permissions"]
+members = ["api", "core", "signer"]
 resolver = "2"
 
 [workspace.dependencies]

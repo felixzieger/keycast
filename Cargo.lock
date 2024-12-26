@@ -1327,7 +1327,6 @@ dependencies = [
  "nostr",
  "nostr-sdk",
  "once_cell",
- "permissions",
  "rand",
  "serde",
  "serde_json",
@@ -1807,21 +1806,6 @@ name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
-
-[[package]]
-name = "permissions"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "keycast_core",
- "nostr-sdk",
- "serde",
- "serde_json",
- "thiserror 2.0.9",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "pest"
