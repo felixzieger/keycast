@@ -347,13 +347,13 @@ pub async fn remove_user(
     // Check if the user is deleting themselves
     if event.pubkey == removed_user_public_key {
         // At least one admin has to remain in the team
-        let remaining_admin_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM team_users WHERE team_id = ?1 AND user_public_key != ?2 AND role = 'admin'")
+        let remaining_admin_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM team_users WHERE team_id = ?1 AND user_public_key != ?2 AND role = 'admin'")
             .bind(team_id)
             .bind(removed_user_public_key.to_hex())
             .fetch_one(&mut *tx)
             .await?;
     
-        if remaining_admin_count.0 == 0 {
+        if remaining_admin_count == 0 {
             return Err(ApiError::forbidden("Cannot delete the last admin from the team."));
         }
     }
