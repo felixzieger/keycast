@@ -14,8 +14,8 @@ Keycast is fully open source and will offer both a hosted version (if you don't 
 - [x] Team management (create teams, manage stored keys, manage users, manage policies). Supports multiple teams per user.
 - [x] Secure key management (row-level aes-256 encryption, file or aws kms backed key storage)
 - [x] Permissions and policies (flexible, extensible permissions model)
-- [ ] NIP-46 Remote signing for managed keys
-- [ ] Docker based deployment
+- [x] NIP-46 Remote signing for managed keys
+- [x] Docker based deployment
 - [ ] StartOS service
 - [ ] Umbrel app
 - [ ] CLI for managing teams, keys, users, and policies
@@ -23,6 +23,12 @@ Keycast is fully open source and will offer both a hosted version (if you don't 
 ## Contributing
 
 Contributions are welcome! Please fork or clone the repository and submit a PR with your changes. Small, well-documented changes are appreciated.
+
+### Contributors
+
+<a href="https://github.com/erskingardner/keycast/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=erskingardner/keycast" />
+</a>
 
 ### The stack
 
@@ -52,7 +58,7 @@ The database is a local SQLite database. There is a helper command to reset the 
 
 - `bun run db:reset` - Reset the database (drop, create, and run migrations)
 
-### Deployment
+## Deployment
 
 To start, we support Docker. 
 
@@ -62,12 +68,17 @@ To start, we support Docker.
 4. Run the docker container with `docker compose up` or `docker compose up -d` to run in detached mode.
 
 
+## Custom Permissions
+
+Keycast is built with a flexible permissions model that allows you to define custom permissions. These permissions are defined in the `core/src/custom_permissions` directory. You can define your own custom permissions by implementing the `CustomPermission` trait which has three methods, `can_encrypt`, `can_decrypt`, and `can_sign`. These methods take in the same arguments as the NIP-46 Request objects and return a boolean.
+
+Each request for one of the matching methods (`sign_event`, `nip04_encrypt`, `nip04_decrypt`, `nip44_encrypt`, `nip44_decrypt`) will be checked against all the permissions defined in the policy. If the permission is not granted, the request will be denied.
+
+To make your custom permission usable in the app, you'll also need to reference it in three places:
+1. The `AVAILABLE_PERMISSIONS` array in `web/src/lib/types.ts`
+2. The `AVAILABLE_PERMISSIONS` array in `core/src/custom_permissions/mod.rs`
+3. The `to_custom_permission` method in `core/src/types/permission.rs`
+
 ## License
 
 [MIT](LICENSE)
-
-## Contributors
-
-<a align="center" href="https://github.com/erskingardner/keycast/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=erskingardner/keycast" />
-</a>
