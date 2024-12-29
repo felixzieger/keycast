@@ -1,6 +1,7 @@
 <script lang="ts">
 import { goto } from "$app/navigation";
 import { page } from "$app/stores";
+import AuthorizationCard from "$lib/components/AuthorizationCard.svelte";
 import Avatar from "$lib/components/Avatar.svelte";
 import Copy from "$lib/components/Copy.svelte";
 import Loader from "$lib/components/Loader.svelte";
@@ -15,14 +16,14 @@ import type {
     StoredKey,
     Team,
 } from "$lib/types";
-import { formattedDate, formattedDateTime } from "$lib/utils/dates";
+import { formattedDate } from "$lib/utils/dates";
 import {
     type NDKEvent,
     NDKNip07Signer,
     type NDKUser,
     type NDKUserProfile,
 } from "@nostr-dev-kit/ndk";
-import { CaretRight, Check, Copy as CopyIcon } from "phosphor-svelte";
+import { CaretRight } from "phosphor-svelte";
 import { toast } from "svelte-hot-french-toast";
 
 const { id, pubkey } = $page.params;
@@ -37,8 +38,6 @@ let key: StoredKey | null = $state(null);
 let authorizations: AuthorizationWithRelations[] = $state([]);
 let keyUser: NDKUser | null = ndk.getUser({ pubkey });
 let keyUserProfile: NDKUserProfile | null = $state(null);
-
-let copyConnectionSuccess = $state(false);
 
 $effect(() => {
     if (user?.pubkey && !unsignedAuthEvent) {
@@ -109,15 +108,6 @@ async function removeKey() {
             toast.error("Failed to remove key");
         });
 }
-
-function copyConnectionString(authorization: AuthorizationWithRelations) {
-    navigator.clipboard.writeText(authorization.bunker_connection_string);
-    toast.success("Connection string copied to clipboard");
-    copyConnectionSuccess = true;
-    setTimeout(() => {
-        copyConnectionSuccess = false;
-    }, 2000);
-}
 </script>
 
 {#if isLoading}
@@ -167,28 +157,7 @@ function copyConnectionString(authorization: AuthorizationWithRelations) {
             {:else}
                 <div class="card-grid">
                     {#each authorizations as authorization}
-                        <div class="card">
-                            <h3 class="font-mono text-sm">{authorization.authorization.secret}</h3>
-                            <button onclick={() => copyConnectionString(authorization)} class="flex flex-row gap-2 items-center justify-center button button-primary button-icon {copyConnectionSuccess ? '!bg-green-600 !text-white !ring-green-600' : ''} transition-all duration-200">
-                                {#if copyConnectionSuccess}
-                                    <Check size="20" />
-                                    Copied!
-                                {:else}
-                                    <CopyIcon size="20" />
-                                    Copy connection string
-                                {/if}
-                            </button>
-                            <div class="grid grid-cols-[auto_1fr] gap-y-1 gap-x-2 text-xs text-gray-400">
-                                <span class="whitespace-nowrap">Redemptions:</span>
-                                <span>{authorization.users.length} / {authorization.authorization.max_uses || "∞"}</span>
-                                <span class="whitespace-nowrap">Expiration:</span>
-                                <span>{formattedDateTime(new Date(authorization.authorization.expires_at)) || "None"}</span>
-                                <span class="whitespace-nowrap">Relays:</span>
-                                <span>{authorization.authorization.relays.join(", ")}</span>
-                                <span class="whitespace-nowrap">Policy:</span>
-                                <span>{authorization.policy.name}</span>
-                            </div>
-                        </div>
+                        <AuthorizationCard {authorization} />
                     {/each}
                 </div>
             {/if}
