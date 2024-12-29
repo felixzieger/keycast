@@ -58,17 +58,7 @@ The database is a local SQLite database. There is a helper command to reset the 
 
 - `bun run db:reset` - Reset the database (drop, create, and run migrations)
 
-## Deployment
-
-To start, we support Docker. 
-
-1. First, ssh into your VM or server where you'll want to run Keycast. 
-2. Clone the repository and navigate to the root directory. `git clone https://github.com/erskingardner/keycast.git && cd keycast`
-3. Build the docker image with `docker compose build`
-4. Run the docker container with `docker compose up` or `docker compose up -d` to run in detached mode.
-
-
-## Custom Permissions
+### Custom Permissions
 
 Keycast is built with a flexible permissions model that allows you to define custom permissions. These permissions are defined in the `core/src/custom_permissions` directory. You can define your own custom permissions by implementing the `CustomPermission` trait which has three methods, `can_encrypt`, `can_decrypt`, and `can_sign`. These methods take in the same arguments as the NIP-46 Request objects and return a boolean.
 
@@ -78,6 +68,15 @@ To make your custom permission usable in the app, you'll also need to reference 
 1. The `AVAILABLE_PERMISSIONS` array in `web/src/lib/types.ts`
 2. The `AVAILABLE_PERMISSIONS` array in `core/src/custom_permissions/mod.rs`
 3. The `to_custom_permission` method in `core/src/types/permission.rs`
+
+## Deployment
+
+To start, we support Docker. 
+
+1. First, ssh into your VM or server where you'll want to run Keycast. 
+2. Clone the repository and navigate to the root directory. `git clone https://github.com/erskingardner/keycast.git && cd keycast`
+3. Build the docker image with `docker compose build`
+4. Run the docker container with `docker compose up` or `docker compose up -d` to run in detached mode.
 
 ## License
 
