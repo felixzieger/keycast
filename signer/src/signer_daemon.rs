@@ -91,196 +91,21 @@ impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T>
     fn approve(&self, request: &Request) -> bool {
         tracing::debug!(target: "keycast_signer::signer_daemon", "Evaluating request: {:?}", request);
 
-        // Check to see if the authorization is expired
-        match self.signer_daemon.authorization.expired() {
-            Ok(true) => {
-                tracing::error!(target: "keycast_signer::signer_daemon", "Authorization expired");
-                return false;
-            }
-            Ok(false) => (),
-            Err(e) => {
-                tracing::error!(target: "keycast_signer::signer_daemon", "Error checking if authorization is expired: {:?}", e);
-                return false;
-            }
-        }
-
-        // Check to see if we have any redemptions left to use
+        // Validate the request against the authorization's policy and permissions
         match self
             .signer_daemon
             .authorization
-            .fully_redeemed(&self.signer_daemon.pool)
+            .validate_policy(&self.signer_daemon.pool, request)
         {
-            Ok(true) => {
-                tracing::error!(target: "keycast_signer::signer_daemon", "Authorization fully redeemed");
-                return false;
-            }
-            Ok(false) => (),
-            Err(e) => {
-                tracing::error!(target: "keycast_signer::signer_daemon", "Error checking if authorization is fully redeemed: {:?}", e);
-                return false;
-            }
-        }
-
-        // Loop through each permission attached to the authentication
-        match self
-            .signer_daemon
-            .authorization
-            .validate_permissions(&self.signer_daemon.pool, request)
-        {
-            Ok(true) => (),
+            Ok(true) => true,
             Ok(false) => {
                 tracing::error!(target: "keycast_signer::signer_daemon", "Authorization does not have the required permissions");
-                return false;
+                false
             }
             Err(e) => {
                 tracing::error!(target: "keycast_signer::signer_daemon", "Error validating permissions: {:?}", e);
-                return false;
+                false
             }
         }
-
-        true
-
-        // match request {
-        //     Request::Connect { public_key, secret } => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "Connect request received");
-        //         return true;
-        //     }
-        //     Request::GetPublicKey => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "Get public key request received");
-        //         return true;
-        //     }
-        //     Request::SignEvent(event) => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "Sign event request received");
-        //         return true;
-        //     }
-        //     Request::GetRelays => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "Get relays request received");
-        //         return true;
-        //     }
-        //     Request::Nip04Encrypt { public_key, text } => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP04 encrypt request received");
-        //         return true;
-        //     }
-        //     Request::Nip04Decrypt {
-        //         public_key,
-        //         ciphertext,
-        //     } => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP04 decrypt request received");
-        //         return true;
-        //     }
-        //     Request::Nip44Encrypt { public_key, text } => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP44 encrypt request received");
-        //         return true;
-        //     }
-        //     Request::Nip44Decrypt {
-        //         public_key,
-        //         ciphertext,
-        //     } => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "NIP44 decrypt request received");
-        //         return true;
-        //     }
-        //     Request::Ping => {
-        //         tracing::info!(target: "keycast_signer::signer_daemon", "Ping request received");
-        //         return true;
-        //     }
-        //     _ => {
-        //         tracing::error!(target: "keycast_signer::signer_daemon", "Unsupported request: {:?}", request);
-        //         return false;
-        //     }
-        // }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use keycast_core::types::authorization::AuthorizationError;
-
-    // Mock Authorization for testing
-    struct MockAuthorization {
-        expired: bool,
-        max_uses: Option<i64>,
-        current_redemptions: i64,
-    }
-
-    impl AuthorizationValidations for MockAuthorization {
-        fn expired(&self) -> Result<bool, AuthorizationError> {
-            Ok(self.expired)
-        }
-
-        fn fully_redeemed(&self, _pool: &SqlitePool) -> Result<bool, AuthorizationError> {
-            Ok(match self.max_uses {
-                Some(max) => self.current_redemptions >= max,
-                None => false, // No maximum uses means it can never be fully redeemed
-            })
-        }
-        fn validate_permissions(
-            &self,
-            _pool: &SqlitePool,
-            _request: &Request,
-        ) -> Result<bool, AuthorizationError> {
-            Ok(true)
-        }
-    }
-
-    // Helper to create SignerDaemon with mock authorization
-    async fn create_test_signer(mock_auth: MockAuthorization) -> SignerDaemon<MockAuthorization> {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
-        SignerDaemon {
-            authorization: mock_auth,
-            pool,
-        }
-    }
-
-    #[tokio::test]
-    async fn test_approve_expired_authorization() {
-        let mock_auth = MockAuthorization {
-            expired: true,
-            max_uses: None,
-            current_redemptions: 0,
-        };
-        let signer_daemon = create_test_signer(mock_auth).await;
-        let signer_actions = SignerActions::new(signer_daemon);
-
-        assert!(!signer_actions.approve(&Request::Ping));
-    }
-
-    #[tokio::test]
-    async fn test_approve_max_uses_exceeded() {
-        let mock_auth = MockAuthorization {
-            expired: false,
-            max_uses: Some(5),
-            current_redemptions: 5,
-        };
-        let signer_daemon = create_test_signer(mock_auth).await;
-        let signer_actions = SignerActions::new(signer_daemon);
-
-        assert!(!signer_actions.approve(&Request::Ping));
-    }
-
-    #[tokio::test]
-    async fn test_approve_valid_authorization() {
-        let mock_auth = MockAuthorization {
-            expired: false,
-            max_uses: Some(5),
-            current_redemptions: 4,
-        };
-        let signer_daemon = create_test_signer(mock_auth).await;
-        let signer_actions = SignerActions::new(signer_daemon);
-
-        assert!(signer_actions.approve(&Request::Ping));
-    }
-
-    #[tokio::test]
-    async fn test_approve_no_max_uses() {
-        let mock_auth = MockAuthorization {
-            expired: false,
-            max_uses: None,
-            current_redemptions: 100,
-        };
-        let signer_daemon = create_test_signer(mock_auth).await;
-        let signer_actions = SignerActions::new(signer_daemon);
-
-        assert!(signer_actions.approve(&Request::Ping));
     }
 }

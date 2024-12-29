@@ -1,6 +1,4 @@
-use crate::custom_permissions::{
-    allowed_kinds::AllowedKinds, content_filter::ContentFilter, encrypt_to_self::EncryptToSelf,
-};
+use crate::custom_permissions::{allowed_kinds::AllowedKinds, content_filter::ContentFilter};
 use crate::traits::CustomPermission;
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
@@ -38,7 +36,6 @@ impl Permission {
         match self.identifier.as_str() {
             "allowed_kinds" => AllowedKinds::from_permission(self),
             "content_filter" => ContentFilter::from_permission(self),
-            "encrypt_to_self" => EncryptToSelf::from_permission(self),
             _ => Err(PermissionError::UnknownPermission(self.identifier.clone())),
         }
     }

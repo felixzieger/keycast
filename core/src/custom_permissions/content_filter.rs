@@ -3,7 +3,7 @@ use crate::{
     types::permission::{Permission, PermissionError},
 };
 use async_trait::async_trait;
-use nostr_sdk::{Event, PublicKey};
+use nostr_sdk::{PublicKey, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -32,22 +32,22 @@ impl CustomPermission for ContentFilter {
         "content_filter"
     }
 
-    fn can_sign(&self, event: &Event) -> bool {
+    fn can_sign(&self, event: &UnsignedEvent) -> bool {
         match &self.config.blocked_words {
             None => true,
             Some(words) => !words.iter().any(|word| event.content.contains(word)),
         }
     }
 
-    fn can_encrypt(&self, event: &Event, _recipient_pubkey: &PublicKey) -> bool {
+    fn can_encrypt(&self, plaintext: &str, _recipient_pubkey: &PublicKey) -> bool {
         match &self.config.blocked_words {
             None => true,
-            Some(words) => !words.iter().any(|word| event.content.contains(word)),
+            Some(words) => !words.iter().any(|word| plaintext.contains(word)),
         }
     }
 
     // We can't know what is in the content of the event, so we always allow decryption
-    fn can_decrypt(&self, _event: &Event, _sender_pubkey: &PublicKey) -> bool {
+    fn can_decrypt(&self, _ciphertext: &str, _sender_pubkey: &PublicKey) -> bool {
         true
     }
 }
