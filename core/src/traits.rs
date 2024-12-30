@@ -11,6 +11,7 @@ pub trait AuthorizationValidations {
     fn validate_policy(
         &self,
         pool: &SqlitePool,
+        pubkey: &PublicKey,
         request: &Request,
     ) -> Result<bool, AuthorizationError>;
 }
@@ -31,8 +32,20 @@ pub trait CustomPermission: Send + Sync {
     fn can_sign(&self, event: &UnsignedEvent) -> bool;
 
     /// A function that returns true if allowed to encrypt the content for the recipient.
-    fn can_encrypt(&self, plaintext: &str, recipient_pubkey: &PublicKey) -> bool;
+    /// Sender is the pubkey of the user requesting the encryption
+    fn can_encrypt(
+        &self,
+        plaintext: &str,
+        sender_pubkey: &PublicKey,
+        recipient_pubkey: &PublicKey,
+    ) -> bool;
 
     /// A function that returns true if allowed to decrypt the content from the sender.
-    fn can_decrypt(&self, ciphertext: &str, sender_pubkey: &PublicKey) -> bool;
+    /// Recipient is the pubkey of the user requesting the decryption
+    fn can_decrypt(
+        &self,
+        ciphertext: &str,
+        sender_pubkey: &PublicKey,
+        recipient_pubkey: &PublicKey,
+    ) -> bool;
 }

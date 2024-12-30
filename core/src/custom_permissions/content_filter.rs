@@ -39,7 +39,12 @@ impl CustomPermission for ContentFilter {
         }
     }
 
-    fn can_encrypt(&self, plaintext: &str, _recipient_pubkey: &PublicKey) -> bool {
+    fn can_encrypt(
+        &self,
+        plaintext: &str,
+        _sender_pubkey: &PublicKey,
+        _recipient_pubkey: &PublicKey,
+    ) -> bool {
         match &self.config.blocked_words {
             None => true,
             Some(words) => !words.iter().any(|word| plaintext.contains(word)),
@@ -47,7 +52,12 @@ impl CustomPermission for ContentFilter {
     }
 
     // We can't know what is in the content of the event, so we always allow decryption
-    fn can_decrypt(&self, _ciphertext: &str, _sender_pubkey: &PublicKey) -> bool {
+    fn can_decrypt(
+        &self,
+        _ciphertext: &str,
+        _sender_pubkey: &PublicKey,
+        _recipient_pubkey: &PublicKey,
+    ) -> bool {
         true
     }
 }

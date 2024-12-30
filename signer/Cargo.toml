@@ -22,7 +22,7 @@ config = { workspace = true }
 dotenv = { workspace = true }
 nostr-sdk = {workspace = true}
 nostr = {workspace = true}
-nostr-connect = {version = "0.37"}
+nostr-connect = {version = "0.37", git="https://github.com/rust-nostr/nostr", rev="5ef7353789d54931b664639c11df1aa22e9aa37c"}
 once_cell = { workspace = true }
 sqlx = { workspace = true }
 thiserror = { workspace = true }

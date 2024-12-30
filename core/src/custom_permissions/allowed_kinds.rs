@@ -41,11 +41,21 @@ impl CustomPermission for AllowedKinds {
     }
 
     // We don't get event info from these requests, so we must always allow
-    fn can_encrypt(&self, _plaintext: &str, _recipient_pubkey: &PublicKey) -> bool {
+    fn can_encrypt(
+        &self,
+        _plaintext: &str,
+        _sender_pubkey: &PublicKey,
+        _recipient_pubkey: &PublicKey,
+    ) -> bool {
         true
     }
     // We don't get event info from these requests, so we must always allow
-    fn can_decrypt(&self, _ciphertext: &str, _sender_pubkey: &PublicKey) -> bool {
+    fn can_decrypt(
+        &self,
+        _ciphertext: &str,
+        _sender_pubkey: &PublicKey,
+        _recipient_pubkey: &PublicKey,
+    ) -> bool {
         true
     }
 }

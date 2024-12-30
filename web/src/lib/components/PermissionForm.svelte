@@ -93,5 +93,7 @@ let contentFilterConfig: ContentFilterConfig = $state({
                 <input class="w-full" type="text" bind:value={contentFilterWords} />
             </div>
         </div>
+    {:else if identifier === "encrypt_to_self"}
+        <span class="mt-6">This permission allows for encryption/decryption but only when encrypting event to the same pubkey as the event pubkey field.</span>
     {/if}
 </div>

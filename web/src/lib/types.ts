@@ -84,7 +84,11 @@ export type PolicyWithPermissions = {
     permissions: Permission[];
 };
 
-export const AVAILABLE_PERMISSIONS = ["allowed_kinds", "content_filter"];
+export const AVAILABLE_PERMISSIONS = [
+    "allowed_kinds",
+    "content_filter",
+    "encrypt_to_self",
+];
 
 export type JsonValue =
     | string

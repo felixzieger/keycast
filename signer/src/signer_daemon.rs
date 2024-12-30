@@ -3,7 +3,6 @@ use keycast_core::encryption::file_key_manager::FileKeyManager;
 use keycast_core::encryption::KeyManager;
 use keycast_core::traits::AuthorizationValidations;
 use keycast_core::types::authorization::Authorization;
-use nostr::nips::nip46::Request;
 use nostr_connect::prelude::*;
 use sqlx::SqlitePool;
 use std::env;
@@ -88,15 +87,15 @@ impl<T: AuthorizationValidations> SignerActions<T> {
 }
 
 impl<T: AuthorizationValidations> NostrConnectSignerActions for SignerActions<T> {
-    fn approve(&self, request: &Request) -> bool {
+    fn approve(&self, pubkey: &PublicKey, request: &Request) -> bool {
         tracing::debug!(target: "keycast_signer::signer_daemon", "Evaluating request: {:?}", request);
 
         // Validate the request against the authorization's policy and permissions
-        match self
-            .signer_daemon
-            .authorization
-            .validate_policy(&self.signer_daemon.pool, request)
-        {
+        match self.signer_daemon.authorization.validate_policy(
+            &self.signer_daemon.pool,
+            pubkey,
+            request,
+        ) {
             Ok(true) => true,
             Ok(false) => {
                 tracing::error!(target: "keycast_signer::signer_daemon", "Authorization does not have the required permissions");

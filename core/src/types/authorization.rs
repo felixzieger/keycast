@@ -6,6 +6,7 @@ use crate::types::policy::Policy;
 use crate::types::stored_key::StoredKey;
 use chrono::DateTime;
 use nostr::nips::nip46::Request;
+use nostr_sdk::PublicKey;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use thiserror::Error;
@@ -115,7 +116,7 @@ pub struct UserAuthorization {
 impl Authorization {
     /// Get the number of redemptions used for this authorization
     /// This method is synchronous/blocking so that we can use it in the signing daemon
-    pub fn redemptions_sync(&self, pool: &SqlitePool) -> Result<u16, AuthorizationError> {
+    pub fn redemptions_count_sync(&self, pool: &SqlitePool) -> Result<u16, AuthorizationError> {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
                 let count = sqlx::query_scalar::<_, i64>(
@@ -127,6 +128,28 @@ impl Authorization {
                 .fetch_one(pool)
                 .await?;
                 Ok(count as u16)
+            })
+        })
+    }
+
+    pub fn redemptions_pubkeys_sync(
+        &self,
+        pool: &SqlitePool,
+    ) -> Result<Vec<PublicKey>, AuthorizationError> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let pubkeys = sqlx::query_scalar::<_, String>(
+                    r#"
+                    SELECT user_public_key FROM user_authorizations WHERE authorization_id = ?
+                    "#,
+                )
+                .bind(self.id)
+                .fetch_all(pool)
+                .await?;
+                Ok(pubkeys
+                    .iter()
+                    .filter_map(|p| PublicKey::from_hex(p).ok())
+                    .collect())
             })
         })
     }
@@ -220,7 +243,7 @@ impl Authorization {
     fn fully_redeemed(&self, pool: &SqlitePool) -> Result<bool, AuthorizationError> {
         match self.max_uses {
             Some(max_uses) => {
-                let redemptions = match self.redemptions_sync(pool) {
+                let redemptions = match self.redemptions_count_sync(pool) {
                     Ok(redemptions) => redemptions,
                     Err(e) => {
                         return Err(e);
@@ -237,6 +260,7 @@ impl AuthorizationValidations for Authorization {
     fn validate_policy(
         &self,
         pool: &SqlitePool,
+        pubkey: &PublicKey,
         request: &Request,
     ) -> Result<bool, AuthorizationError> {
         // Before anything, check if the authorization is expired
@@ -280,9 +304,8 @@ impl AuthorizationValidations for Authorization {
             }
             Request::GetPublicKey => {
                 tracing::info!(target: "keycast_signer::signer_daemon", "Get public key request received");
-                // TODO: I'd like to check if the pubkey sending the request is in the list of authorized pubkeys,
-                // but we can't because that info isn't included in the request.
-                Ok(true)
+                // Double check that the pubkey has connected to/redeemed this authorization
+                Ok(self.redemptions_pubkeys_sync(pool)?.contains(pubkey))
             }
             Request::SignEvent(event) => {
                 tracing::info!(target: "keycast_signer::signer_daemon", "Sign event request received");
@@ -301,7 +324,7 @@ impl AuthorizationValidations for Authorization {
             | Request::Nip44Encrypt { public_key, text } => {
                 tracing::info!(target: "keycast_signer::signer_daemon", "NIP04 encrypt request received");
                 for permission in custom_permissions {
-                    if !permission.can_encrypt(text, public_key) {
+                    if !permission.can_encrypt(text, pubkey, public_key) {
                         return Err(AuthorizationError::Unauthorized);
                     }
                 }
@@ -317,7 +340,7 @@ impl AuthorizationValidations for Authorization {
             } => {
                 tracing::info!(target: "keycast_signer::signer_daemon", "NIP04 decrypt request received");
                 for permission in custom_permissions {
-                    if !permission.can_decrypt(ciphertext, public_key) {
+                    if !permission.can_decrypt(ciphertext, public_key, pubkey) {
                         return Err(AuthorizationError::Unauthorized);
                     }
                 }
@@ -552,6 +575,8 @@ mod tests {
         .unwrap();
 
         let auth = create_test_authorization(&pool, None, None).await;
+        let keys = Keys::generate();
+        let pubkey = keys.public_key();
         // Test with a simple request
         let request = Request::Connect {
             public_key: PublicKey::from_hex(&auth.bunker_public_key).unwrap(),
@@ -559,6 +584,6 @@ mod tests {
         };
 
         // This should return true as per current implementation
-        assert!(auth.validate_policy(&pool, &request).unwrap());
+        assert!(auth.validate_policy(&pool, &pubkey, &request).unwrap());
     }
 }
