@@ -10,6 +10,7 @@ use nostr_sdk::PublicKey;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, SqlitePool};
 use thiserror::Error;
+use urlencoding;
 
 #[derive(Error, Debug)]
 pub enum AuthorizationError {
@@ -216,20 +217,21 @@ impl Authorization {
     }
 
     /// Generate a connection string for the authorization
-    /// bunker://<remote-signer-pubkey>?relay=<wss://relay-to-connect-on>&relay=<wss://another-relay-to-connect-on>&secret=<optional-secret-value>
+    /// bunker://<remote-signer-pubkey>?relay=<encoded-relay-1,encoded-relay-2>&secret=<encoded-secret>
     pub async fn bunker_connection_string(&self) -> Result<String, AuthorizationError> {
-        let relays_arr = self
+        let encoded_relays = self
             .relays
             .0
             .iter()
-            .map(|r| format!("relay={}", r))
-            .collect::<Vec<String>>();
+            .map(|r| urlencoding::encode(r))
+            .collect::<Vec<_>>()
+            .join(",");
 
         Ok(format!(
-            "bunker://{}?{}&secret={}",
+            "bunker://{}?relay={}&secret={}",
             self.bunker_public_key,
-            relays_arr.join("&"),
-            self.secret,
+            encoded_relays,
+            urlencoding::encode(&self.secret),
         ))
     }
 
