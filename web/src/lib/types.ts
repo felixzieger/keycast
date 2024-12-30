@@ -60,11 +60,6 @@ export type Policy = {
     updated_at: Date;
 };
 
-export type AuthorizationWithPolicy = {
-    authorization: Authorization;
-    policy: Policy;
-};
-
 export type AuthorizationWithRelations = {
     authorization: Authorization;
     policy: Policy;

@@ -3,7 +3,7 @@ use crate::{
     types::permission::{Permission, PermissionError},
 };
 use async_trait::async_trait;
-use nostr_sdk::{Event, PublicKey};
+use nostr_sdk::{PublicKey, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -24,15 +24,25 @@ impl CustomPermission for EncryptToSelf {
     }
 
     // This permission doesn't care about signing events
-    fn can_sign(&self, _event: &Event) -> bool {
+    fn can_sign(&self, _event: &UnsignedEvent) -> bool {
         true
     }
 
-    fn can_encrypt(&self, event: &Event, recipient_pubkey: &PublicKey) -> bool {
-        event.pubkey == *recipient_pubkey
+    fn can_encrypt(
+        &self,
+        _plaintext: &str,
+        sender_pubkey: &PublicKey,
+        recipient_pubkey: &PublicKey,
+    ) -> bool {
+        *sender_pubkey == *recipient_pubkey
     }
 
-    fn can_decrypt(&self, event: &Event, sender_pubkey: &PublicKey) -> bool {
-        event.pubkey == *sender_pubkey
+    fn can_decrypt(
+        &self,
+        _ciphertext: &str,
+        sender_pubkey: &PublicKey,
+        recipient_pubkey: &PublicKey,
+    ) -> bool {
+        *sender_pubkey == *recipient_pubkey
     }
 }

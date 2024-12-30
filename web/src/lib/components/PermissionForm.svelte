@@ -48,9 +48,6 @@ $effect(() => {
         case "content_filter":
             config = contentFilterConfig;
             break;
-        case "encrypt_to_self":
-            config = null;
-            break;
     }
 });
 

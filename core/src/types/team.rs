@@ -2,7 +2,7 @@ use crate::encryption::KeyManagerError;
 use crate::types::authorization::{AuthorizationError, AuthorizationWithRelations};
 use crate::types::permission::{Permission, PermissionError};
 use crate::types::policy::{Policy, PolicyError, PolicyWithPermissions};
-use crate::types::stored_key::StoredKey;
+use crate::types::stored_key::{PublicStoredKey, StoredKey};
 use crate::types::user::{TeamUser, UserError};
 use chrono::DateTime;
 use nostr_sdk::prelude::*;
@@ -58,14 +58,14 @@ pub struct Team {
 pub struct TeamWithRelations {
     pub team: Team,
     pub team_users: Vec<TeamUser>, // Use team_user here so we get the role
-    pub stored_keys: Vec<StoredKey>,
+    pub stored_keys: Vec<PublicStoredKey>,
     pub policies: Vec<PolicyWithPermissions>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KeyWithRelations {
     pub team: Team,
-    pub stored_key: StoredKey,
+    pub stored_key: PublicStoredKey,
     pub authorizations: Vec<AuthorizationWithRelations>,
 }
 
@@ -99,13 +99,18 @@ impl Team {
                 .fetch_all(pool)
                 .await?;
 
+        let public_stored_keys: Vec<PublicStoredKey> = stored_keys
+            .into_iter()
+            .map(|k| k.into())
+            .collect::<Vec<_>>();
+
         // Get policies for this team
         let policies = Team::get_policies_with_permissions(pool, team_id).await?;
 
         Ok(TeamWithRelations {
             team,
             team_users,
-            stored_keys,
+            stored_keys: public_stored_keys,
             policies,
         })
     }

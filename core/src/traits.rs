@@ -2,19 +2,16 @@ use crate::types::authorization::AuthorizationError;
 use crate::types::permission::{Permission, PermissionError};
 use async_trait::async_trait;
 use nostr::nips::nip46::Request;
-use nostr_sdk::{Event, PublicKey};
+use nostr_sdk::{PublicKey, UnsignedEvent};
 use sqlx::SqlitePool;
 
 /// Provides methods for validating an authorization against it's permissions and other properties in the context of a request
 pub trait AuthorizationValidations {
-    /// Check if the authorization is expired
-    fn expired(&self) -> Result<bool, AuthorizationError>;
-    /// Check if the authorization has no redeemable uses left
-    fn fully_redeemed(&self, pool: &SqlitePool) -> Result<bool, AuthorizationError>;
-    /// Check the authorizations permissions
-    fn validate_permissions(
+    /// Check the authorization's policy & permissions
+    fn validate_policy(
         &self,
         pool: &SqlitePool,
+        pubkey: &PublicKey,
         request: &Request,
     ) -> Result<bool, AuthorizationError>;
 }
@@ -32,11 +29,23 @@ pub trait CustomPermission: Send + Sync {
     fn identifier(&self) -> &'static str;
 
     /// A function that returns true if allowed to sign the event.
-    fn can_sign(&self, event: &Event) -> bool;
+    fn can_sign(&self, event: &UnsignedEvent) -> bool;
 
-    /// A function that returns true if allowed to encrypt the event for the recipient.
-    fn can_encrypt(&self, event: &Event, recipient_pubkey: &PublicKey) -> bool;
+    /// A function that returns true if allowed to encrypt the content for the recipient.
+    /// Sender is the pubkey of the user requesting the encryption
+    fn can_encrypt(
+        &self,
+        plaintext: &str,
+        sender_pubkey: &PublicKey,
+        recipient_pubkey: &PublicKey,
+    ) -> bool;
 
-    /// A function that returns true if allowed to decrypt the event for the sender.
-    fn can_decrypt(&self, event: &Event, sender_pubkey: &PublicKey) -> bool;
+    /// A function that returns true if allowed to decrypt the content from the sender.
+    /// Recipient is the pubkey of the user requesting the decryption
+    fn can_decrypt(
+        &self,
+        ciphertext: &str,
+        sender_pubkey: &PublicKey,
+        recipient_pubkey: &PublicKey,
+    ) -> bool;
 }

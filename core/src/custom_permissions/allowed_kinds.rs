@@ -3,14 +3,12 @@ use crate::{
     types::permission::{Permission, PermissionError},
 };
 use async_trait::async_trait;
-use nostr_sdk::{Event, PublicKey};
+use nostr_sdk::{PublicKey, UnsignedEvent};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AllowedKindsConfig {
-    pub sign: Option<Vec<u16>>,
-    pub encrypt: Option<Vec<u16>>,
-    pub decrypt: Option<Vec<u16>>,
+    pub allowed_kinds: Option<Vec<u16>>,
 }
 
 pub struct AllowedKinds {
@@ -35,32 +33,35 @@ impl CustomPermission for AllowedKinds {
         "allowed_kinds"
     }
 
-    fn can_sign(&self, event: &Event) -> bool {
-        match &self.config.sign {
+    fn can_sign(&self, event: &UnsignedEvent) -> bool {
+        match &self.config.allowed_kinds {
             None => true,
             Some(kinds) => kinds.contains(&event.kind.into()),
         }
     }
 
-    fn can_encrypt(&self, event: &Event, _recipient_pubkey: &PublicKey) -> bool {
-        match &self.config.encrypt {
-            None => true,
-            Some(kinds) => kinds.contains(&event.kind.into()),
-        }
+    // We don't get event info from these requests, so we must always allow
+    fn can_encrypt(
+        &self,
+        _plaintext: &str,
+        _sender_pubkey: &PublicKey,
+        _recipient_pubkey: &PublicKey,
+    ) -> bool {
+        true
     }
-
-    fn can_decrypt(&self, event: &Event, _sender_pubkey: &PublicKey) -> bool {
-        match &self.config.decrypt {
-            None => true,
-            Some(kinds) => kinds.contains(&event.kind.into()),
-        }
+    // We don't get event info from these requests, so we must always allow
+    fn can_decrypt(
+        &self,
+        _ciphertext: &str,
+        _sender_pubkey: &PublicKey,
+        _recipient_pubkey: &PublicKey,
+    ) -> bool {
+        true
     }
 }
 
 #[test]
 fn test_default() {
     let config = AllowedKindsConfig::default();
-    assert!(config.sign.is_none());
-    assert!(config.encrypt.is_none());
-    assert!(config.decrypt.is_none());
+    assert!(config.allowed_kinds.is_none());
 }

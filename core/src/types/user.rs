@@ -104,7 +104,10 @@ impl User {
             teams_with_relations.push(TeamWithRelations {
                 team,
                 team_users,
-                stored_keys,
+                stored_keys: stored_keys
+                    .into_iter()
+                    .map(|k| k.into())
+                    .collect::<Vec<_>>(),
                 policies,
             });
         }

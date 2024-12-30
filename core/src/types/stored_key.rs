@@ -38,7 +38,6 @@ pub struct StoredKey {
     /// The public key of the key, in hex format
     pub public_key: String,
     /// The secret key of the key, in bytes, encrypted
-    #[sqlx(skip)]
     pub secret_key: Vec<u8>,
     /// The date and time the key was created
     pub created_at: DateTime<chrono::Utc>,
