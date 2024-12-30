@@ -14,7 +14,7 @@ use crate::api::extractors::AuthEvent;
 use crate::state::get_key_manager;
 use keycast_core::custom_permissions::{allowed_kinds::AllowedKindsConfig, AVAILABLE_PERMISSIONS};
 use keycast_core::types::authorization::{
-    Authorization, AuthorizationWithPolicy, AuthorizationWithRelations, UserAuthorization,
+    Authorization, AuthorizationWithRelations, UserAuthorization,
 };
 use keycast_core::types::permission::{Permission, PolicyPermission};
 use keycast_core::types::policy::{Policy, PolicyWithPermissions};
@@ -352,9 +352,11 @@ pub async fn remove_user(
             .bind(removed_user_public_key.to_hex())
             .fetch_one(&mut *tx)
             .await?;
-    
+
         if remaining_admin_count == 0 {
-            return Err(ApiError::forbidden("Cannot delete the last admin from the team."));
+            return Err(ApiError::forbidden(
+                "Cannot delete the last admin from the team.",
+            ));
         }
     }
 
@@ -490,14 +492,11 @@ pub async fn get_key(
     .await?;
 
     // First fetch authorizations with policies
-    let base_authorizations = sqlx::query_as::<_, AuthorizationWithPolicy>(
+    let authorizations = sqlx::query_as::<_, Authorization>(
         r#"
-            SELECT 
-                a.*,
-                p.*
-            FROM authorizations a
-            LEFT JOIN policies p ON p.id = a.policy_id
-            WHERE a.stored_key_id = ?1
+            SELECT *
+            FROM authorizations
+            WHERE stored_key_id = ?1
             "#,
     )
     .bind(stored_key.id)
@@ -506,7 +505,19 @@ pub async fn get_key(
 
     // Then fetch users for each authorization and combine
     let mut complete_authorizations = Vec::new();
-    for auth in base_authorizations {
+
+    for auth in authorizations {
+        let policy = sqlx::query_as::<_, Policy>(
+            r#"
+                SELECT *
+                FROM policies
+                WHERE id = ?1
+                "#,
+        )
+        .bind(auth.policy_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
         let users = sqlx::query_as::<_, UserAuthorization>(
             r#"
                 SELECT user_public_key, created_at, updated_at
@@ -514,16 +525,15 @@ pub async fn get_key(
                 WHERE authorization_id = ?1
                 "#,
         )
-        .bind(auth.authorization.id)
+        .bind(auth.id)
         .fetch_all(&mut *tx)
         .await?;
 
         complete_authorizations.push(AuthorizationWithRelations {
-            authorization: auth.authorization.clone(),
-            policy: auth.policy,
+            authorization: auth.clone(),
+            policy,
             users,
             bunker_connection_string: auth
-                .authorization
                 .bunker_connection_string()
                 .await
                 .map_err(|e| ApiError::internal(e.to_string()))?,

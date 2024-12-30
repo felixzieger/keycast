@@ -90,14 +90,6 @@ pub struct Authorization {
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
-pub struct AuthorizationWithPolicy {
-    #[sqlx(flatten)]
-    pub authorization: Authorization,
-    #[sqlx(flatten)]
-    pub policy: Policy,
-}
-
-#[derive(Debug, FromRow, Serialize, Deserialize)]
 pub struct AuthorizationWithRelations {
     #[sqlx(flatten)]
     pub authorization: Authorization,
