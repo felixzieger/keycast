@@ -162,6 +162,33 @@ impl Authorization {
     ) -> Result<(), AuthorizationError> {
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(async {
+                // Check if the user exists
+                let user = sqlx::query_scalar::<_, String>(
+                    r#"
+                    SELECT public_key FROM users WHERE public_key = ?
+                    "#,
+                )
+                .bind(pubkey.to_hex())
+                .fetch_optional(pool)
+                .await?;
+
+                // Create the user if needed
+                if user.is_none() {
+                    tracing::info!(target: "keycast_signer::signer_daemon", "Creating new user for pubkey: {:?}", pubkey);
+                    sqlx::query(
+                        r#"
+                        INSERT INTO users (public_key, created_at, updated_at)
+                        VALUES (?, ?, ?)
+                        "#,
+                    )
+                    .bind(pubkey.to_hex())
+                    .bind(chrono::Utc::now())
+                    .bind(chrono::Utc::now())
+                    .execute(pool)
+                    .await?;
+                }
+
+                // Create the user authorization
                 sqlx::query(
                     r#"
                     INSERT INTO user_authorizations (authorization_id, user_public_key, created_at, updated_at)
@@ -328,6 +355,7 @@ impl AuthorizationValidations for Authorization {
                 }
                 // Create a new user authorization if we don't already have one for the requesting pubkey
                 if !self.redemptions_pubkeys_sync(pool)?.contains(pubkey) {
+                    tracing::info!(target: "keycast_signer::signer_daemon", "Creating new user authorization for pubkey: {:?}", pubkey);
                     self.create_redemption_sync(pool, pubkey)?;
                 }
                 Ok(true)
