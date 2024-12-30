@@ -219,18 +219,18 @@ impl Authorization {
     /// Generate a connection string for the authorization
     /// bunker://<remote-signer-pubkey>?relay=<encoded-relay-1,encoded-relay-2>&secret=<encoded-secret>
     pub async fn bunker_connection_string(&self) -> Result<String, AuthorizationError> {
-        let encoded_relays = self
+        let relay_params = self
             .relays
             .0
             .iter()
-            .map(|r| urlencoding::encode(r))
+            .map(|r| format!("relay={}", urlencoding::encode(r)))
             .collect::<Vec<_>>()
-            .join(",");
+            .join("&");
 
         Ok(format!(
-            "bunker://{}?relay={}&secret={}",
+            "bunker://{}?{}&secret={}",
             self.bunker_public_key,
-            encoded_relays,
+            relay_params,
             urlencoding::encode(&self.secret),
         ))
     }
