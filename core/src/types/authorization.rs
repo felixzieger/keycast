@@ -155,6 +155,30 @@ impl Authorization {
         })
     }
 
+    pub fn create_redemption_sync(
+        &self,
+        pool: &SqlitePool,
+        pubkey: &PublicKey,
+    ) -> Result<(), AuthorizationError> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                sqlx::query(
+                    r#"
+                    INSERT INTO user_authorizations (authorization_id, user_public_key, created_at, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    "#,
+                )
+                .bind(self.id)
+                .bind(pubkey.to_hex())
+                .bind(chrono::Utc::now())
+                .bind(chrono::Utc::now())
+                .execute(pool)
+                .await?;
+                Ok(())
+            })
+        })
+    }
+
     pub async fn find(pool: &SqlitePool, id: u32) -> Result<Self, AuthorizationError> {
         let authorization = sqlx::query_as::<_, Authorization>(
             r#"
@@ -301,6 +325,10 @@ impl AuthorizationValidations for Authorization {
                         return Err(AuthorizationError::InvalidSecret)
                     }
                     _ => {}
+                }
+                // Create a new user authorization if we don't already have one for the requesting pubkey
+                if !self.redemptions_pubkeys_sync(pool)?.contains(pubkey) {
+                    self.create_redemption_sync(pool, pubkey)?;
                 }
                 Ok(true)
             }
